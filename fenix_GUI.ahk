@@ -985,9 +985,9 @@ DarkClickInWindow(Idx) {
 ; 运行里记着，脚本重开就回到全未使用。
 ; 勾选框右边的下拉框是冷却分钟数（判断时现读）：
 ;   选 0：不设冷却，和没有这个下拉框时一样（就按上面标记走）。
-;   选 5/10/20/30：某个桌面按过 F9 后，这么多分钟内不再考虑
-;     给它按 F9；时间到了、放映机还是不在，就再按一次 F9 并
-;     重新计时（标记仍是已使用；放映机出现照样提前清标记）。
+;   选 5/10/20/30：冷却从按下 F9 的那一刻起算，这么多分钟内
+;     不再考虑给它按 F9——放映机中途出现只清标记、清不掉冷却
+;     计时；时间到了、放映机还是不在，就再按一次 F9 并重新计时。
 ;   选「不使用」：等于没勾勾选框，这个函数直接返回。
 ; 在本轮动作都做完、要切走之前调用（MainCheckStep 的两个提前
 ; 返回处和 PressXStep 的两个结尾处各调一次，每轮只会走到一处）。
@@ -1018,15 +1018,21 @@ ApplyLifeWaterRule(Idx) {
             LifeWaterUsed[Idx] := false
             LogFind("D" Idx " lifewater: projector yes, mark cleared (unused)")
         }
-        LifeWaterPressTick[Idx] := 0
+        ; 注意：这里不清 LifeWaterPressTick。冷却从按下 F9 那一刻
+        ; 起算，中途放映机出现只能清标记、不能把冷却计时清掉，
+        ; 不然放映机闪一下（在/不在之间跳一次），冷却就失效了。
+    } else if (CooldownMin > 0 && LifeWaterPressTick[Idx] > 0
+        && (A_TickCount - LifeWaterPressTick[Idx] < CooldownMin * 60000)) {
+        ; 还在冷却内：不管标记是什么，都不再考虑按 F9。
+        return
     } else if (!LifeWaterUsed[Idx]) {
         Send("{F9}")
         LifeWaterUsed[Idx] := true
         LifeWaterPressTick[Idx] := A_TickCount
         LogFind("D" Idx " lifewater: projector no, pressed F9, marked used")
         ToolTip("Desktop " Idx ": projector no, pressed F9 (life water)")
-    } else if (CooldownMin > 0 && LifeWaterPressTick[Idx] > 0
-        && (A_TickCount - LifeWaterPressTick[Idx] >= CooldownMin * 60000)) {
+    } else if (CooldownMin > 0) {
+        ; 标记还是已使用、但冷却已经到了：再按一次，重新计时。
         Send("{F9}")
         LifeWaterPressTick[Idx] := A_TickCount
         LogFind("D" Idx " lifewater: cooldown " CooldownMin " min expired, pressed F9 again")
