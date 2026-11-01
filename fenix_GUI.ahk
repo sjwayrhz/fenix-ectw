@@ -265,10 +265,10 @@ btnDesktop := MyGui.Add("Button", "x10 y35 w100 h30", "启停键 F11")
 btnDesktop.OnEvent("Click", MinimizeAndRun(ToggleDesktop))
 chkLifeWater := MyGui.Add("CheckBox", "x115 y35 w135 h30", "使用女神的生命水")
 chkLifeWater.OnEvent("Click", ToggleLifeWaterOptions)
-; 生命水冷却下拉框：0/5/10/20/30 是分钟数，「不使用」等于关掉生命水。
+; 生命水冷却下拉框：0/5/10 是分钟数，「不使用」等于关掉生命水。
 ; 默认选 0（不设冷却，和没有这个框时一样），每次打开脚本都回到 0，不存配置。
 ; 勾上勾选框才显示下拉框和「分钟」两个字，不勾就藏起来（默认不勾，所以先藏）。
-ddlLifeWater := MyGui.Add("DropDownList", "x255 y35 w55 r6", ["0", "5", "10", "20", "30", "不使用"])
+ddlLifeWater := MyGui.Add("DropDownList", "x255 y35 w55 r4", ["0", "5", "10", "不使用"])
 ddlLifeWater.Value := 1
 txtLifeWaterUnit := MyGui.Add("Text", "x315 y42 w28", "分钟")
 ddlLifeWater.Visible := false
@@ -844,7 +844,7 @@ StepDesktop() {
 ;   5. 女神的生命水（勾选框勾上才生效，本轮动作做完后判断一次）：
 ;      放映机不在、且这个桌面还没记过已使用，就按 F9 并记已使用；
 ;      放映机在，就把标记改回未使用。勾选框右边的下拉框选了
-;      5/10/20/30 分钟时，按过 F9 的桌面冷却这么久，时间到了、
+;      5/10 分钟时，按过 F9 的桌面冷却这么久，时间到了、
 ;      放映机还是不在就再按一次 F9；选 0 不设冷却，选「不使用」
 ;      等于没勾。见 ApplyLifeWaterRule。
 MainCheckStep() {
@@ -985,7 +985,7 @@ DarkClickInWindow(Idx) {
 ; 运行里记着，脚本重开就回到全未使用。
 ; 勾选框右边的下拉框是冷却分钟数（判断时现读）：
 ;   选 0：不设冷却，和没有这个下拉框时一样（就按上面标记走）。
-;   选 5/10/20/30：冷却从按下 F9 的那一刻起算，这么多分钟内
+;   选 5/10：冷却从按下 F9 的那一刻起算，这么多分钟内
 ;     不再考虑给它按 F9——放映机中途出现只清标记、清不掉冷却
 ;     计时；时间到了、放映机还是不在，就再按一次 F9 并重新计时。
 ;   选「不使用」：等于没勾勾选框，这个函数直接返回。
@@ -1008,7 +1008,7 @@ ApplyLifeWaterRule(Idx) {
     if (SelText = "不使用") {
         return
     }
-    CooldownMin := Integer(SelText)   ; 0、5、10、20、30（分钟）
+    CooldownMin := Integer(SelText)   ; 0、5、10（分钟）
     while (LifeWaterUsed.Length < Idx) {
         LifeWaterUsed.Push(false)
         LifeWaterPressTick.Push(0)
