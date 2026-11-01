@@ -243,7 +243,7 @@ HelpText := "快捷键说明"
     . "`nF12：开始 / 停止「开箱子」（开始时启动上次点的那个模式）"
     . "`n飘号键（1 左边）：开启 / 关闭「快捷切换」"
     . "`nF1 / F2 / F3：切到桌面 1 / 2 / 3（快捷切换开启时才管用）"
-    . "`nF4：回放录制，点按回放 1 次，按住约 2 秒无限回放，回放中再按 F4 立刻停（快捷切换开启时才管用）"
+    . "`nF4：回放录制，点按回放 1 次，按住约 2 秒弹出对话框填重复次数（默认 0 = 无限制，填 3 就回放 3 次），回放中再按 F4 立刻停（快捷切换开启时才管用）"
     . "`nF5：开始 / 停止录制，回放中按 F5 也立刻停（快捷切换开启时才管用）"
     . "`nEsc：取点时取消"
 ToggleHelp(*) {
@@ -1400,8 +1400,8 @@ ClearToolTip() {
 
 ; ===== 录鼠标和键盘 / 回放（快捷切换开着的时候才能用）=====
 ; 录鼠标（每次点下/松开左键/右键的位置和间隔）、键盘（每次按下/松开按键和间隔）。
-; 回放按 F4：点一下回放 1 次；按住 F4 大约 2 秒是无限回放，
-; 按住 2 秒后先显示「无限回放」提示，1 秒后开始循环回放，再按 F4 停掉。
+; 回放按 F4：点一下回放 1 次；按住 F4 大约 2 秒弹出对话框
+; 填重复次数（默认 0 = 无限制），确定后 1 秒开始回放，再按 F4 停掉。
 ; 每遍开始时光标旁边显示统计（回放 1 次显示「回放 1/1」，无限显示「无限回放 第 k 次」）。
 RecordPoll() {
     global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, KeysToRecord, KeyPrevState, txtQuickStatus
@@ -1480,9 +1480,9 @@ ToggleRecord(*) {
     }
 }
 
-; F4：点一下回放 1 次；按住大约 2 秒是无限回放。
-; 按住 2 秒后先显示「无限回放」提示，1 秒后开始循环回放，
-; 再按 F4 停掉（F5 也能停）。
+; F4：点一下回放 1 次；按住大约 2 秒弹出对话框填重复次数
+; （默认 0，0 是无限制，填几就回放几次），点确定后 1 秒开始
+; 回放；取消就不回放。再按 F4 停掉（F5 也能停）。
 F4Handler(*) {
     global Recording, RecordEvents, PlayingBack, txtQuickStatus
     if (Recording) {
@@ -1508,9 +1508,21 @@ F4Handler(*) {
     if (Released) {
         SetTimer(() => PlayRecording(1), -1)
     } else {
-        ToolTip("无限回放")
+        ; 按住超过 2 秒：弹框问重复次数，默认 0（0 = 无限制）。
+        ; 取消就不回放；填的不是 0 或正整数也不回放。
+        IB := InputBox("重复次数（0 = 无限制，填几就回放几次）", "回放次数", "w320 h130", "0")
+        if (IB.Result = "Cancel") {
+            return
+        }
+        TimesText := Trim(IB.Value)
+        if (!RegExMatch(TimesText, "^\d+$")) {
+            ShowTempToolTip("次数无效，未回放（请输入 0 或正整数）")
+            return
+        }
+        Times := Integer(TimesText)
+        ToolTip(Times = 0 ? "无限回放，1 秒后开始" : "回放 " Times " 次，1 秒后开始")
         Sleep(1000)
-        SetTimer(() => PlayRecording(0), -1)
+        SetTimer(() => PlayRecording(Times), -1)
     }
 }
 
