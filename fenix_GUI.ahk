@@ -151,6 +151,9 @@ CalProjY := []
 CheckProjFound := false ; 这轮检查：放映机图标在不在（check 步记下，pressX 步用）
 LifeWaterUsed := [false, false, false] ; 女神的生命水：每个桌面（下标 1..3）有没有记过「已使用」
 LifeWaterPressTick := [0, 0, 0] ; 女神的生命水：每个桌面上次按 F9 的时刻（A_TickCount，0=没按过），给冷却下拉框计时用
+ProjPrevYes := [false, false, false] ; 每个桌面上一次轮询时放映机在不在（暗色点击有效期用）
+ProjYesTick := [0, 0, 0]             ; 每个桌面放映机这次「连续在」是从何时开始的（A_TickCount，0=当前不在）
+DarkClickWindowMs := 15000           ; 暗色点击有效期：放映机由不在变在之后 15 秒内点才有效
 CheckStatusNotFound := false ; 这轮检查：状态图标是不是都没找到（check 步记下，pressX 步用）
 
 ; ===== 图标图案（功能 1 用，FindText）=====
@@ -389,6 +392,7 @@ ToggleDesktop(*) {
     global CfgDesktopWait, CfgDesktopKey, CfgSwitchX, CfgSwitchY
     global CyclePhase, CycleCount, DesktopNext, CurrentDesktop, DesktopCount
     global CalStatusX, CalStatusY, CalProjX, CalProjY
+    global ProjPrevYes, ProjYesTick
     if (DesktopRunning) {
         StopDesktopPolling()
         ToolTip()
@@ -418,6 +422,10 @@ ToggleDesktop(*) {
     }
     DesktopNext := 0
     CurrentDesktop := 0
+    ; 暗色点击有效期重新观察：放映机上次状态和计时起点都清零，
+    ; 第一次看到放映机在就算它刚变在、窗口从那一刻起算 15 秒。
+    ProjPrevYes := [false, false, false]
+    ProjYesTick := [0, 0, 0]
     StartCyclePhase("main")
     StepDesktop()
 }
@@ -829,6 +837,9 @@ StepDesktop() {
 ;      复检不在就不点；点完再判断一次：变非暗色就只按 X、不按 F；
 ;      还是暗色就按 F，再在约 0.05 秒后按 X。
 ;      放映机不在的暗色：不点，只按 F。
+;      点击还有 15 秒有效期：放映机由不在变在才开始计时，这个
+;      桌面连续「在」超过 15 秒后，就算找到暗色也不点（F、X
+;      照常）；放映机变不在再变在，重新计时。见 NoteProjectorVisit。
 ;   4. 状态没找到：按 F；放映机图标在，才在约 0.05 秒后按 X；不点。
 ;   5. 女神的生命水（勾选框勾上才生效，本轮动作做完后判断一次）：
 ;      放映机不在、且这个桌面还没记过已使用，就按 F9 并记已使用；
@@ -863,6 +874,7 @@ MainCheckStep() {
     PY := 0
     ProjFound := FindProjector(Idx, &PX, &PY)
     CheckProjFound := ProjFound
+    NoteProjectorVisit(Idx)
     ; 暗色 + 放映机在：发现就马上点（按 F 之前点，点的是这次刚找到的位置；
     ; 按 F 可能过图，等 0.05 秒后再点位置就变了）。
     ; 点之前先复检一次放映机图标：搜状态图标期间它可能刚消失，
@@ -871,6 +883,12 @@ MainCheckStep() {
     ; 点完再判断一次：点完变成非暗色（亮色）就不按 F 了（只按 X）；
     ; 还是暗色就照常往下按 F。
     if (ProjFound && DarkFound) {
+        if (!DarkClickInWindow(Idx)) {
+            ; 15 秒有效期已过（放映机连续在太久）：不点了，
+            ; 其余照常往下走（按 F，pressX 步按 X）。
+            LogFind("D" Idx " projwin: dark found but 15s click window expired, no click")
+            ToolTip("Desktop " Idx ": projector yes, dark, click window expired, no click")
+        } else {
         PX2 := 0
         PY2 := 0
         ProjFound := FindProjector(Idx, &PX2, &PY2)
@@ -908,6 +926,7 @@ MainCheckStep() {
             }
             LogFind("D" Idx " dark clicked, still dark, press F")
         }
+        }
     }
     if (ProjFound && !DarkFound && !UnknownFound && !CheckStatusNotFound) {
         ; 放映机图标在、并且是非暗色（亮色）：只按 X，不按 F，不点。
@@ -922,6 +941,38 @@ MainCheckStep() {
     Send(DesktopKey)
     DesktopPhase := "pressX"
     SetTimer(StepDesktop, KeyGapMs)
+}
+
+; 暗色点击的 15 秒有效期记账：每轮检查的放映机结果定下来后
+; 调一次。放映机由不在变在（上次记的是不在、这次在），从
+; 这一刻开始计时；这次不在，就把起点清零。三个桌面各记各的。
+; 每次启动轮询时在 ToggleDesktop 里清零重记：第一次看到放映机
+; 在，就当它刚变在、窗口从那一刻起算。
+NoteProjectorVisit(Idx) {
+    global ProjPrevYes, ProjYesTick, CheckProjFound
+    while (ProjPrevYes.Length < Idx) {
+        ProjPrevYes.Push(false)
+        ProjYesTick.Push(0)
+    }
+    if (CheckProjFound) {
+        if (!ProjPrevYes[Idx]) {
+            ProjYesTick[Idx] := A_TickCount
+            LogFind("D" Idx " projwin: projector no -> yes, 15s dark-click window started")
+        }
+    } else {
+        ProjYesTick[Idx] := 0
+    }
+    ProjPrevYes[Idx] := CheckProjFound
+}
+
+; 暗色点击还在不在有效期内：这个桌面放映机连续在、且从
+; 变在的那一刻起没超过 15 秒，才返回 true。
+DarkClickInWindow(Idx) {
+    global ProjYesTick, DarkClickWindowMs
+    if (Idx > ProjYesTick.Length || ProjYesTick[Idx] = 0) {
+        return false
+    }
+    return (A_TickCount - ProjYesTick[Idx] <= DarkClickWindowMs)
 }
 
 ; 女神的生命水（功能 1 的附带规则，「使用女神的生命水」勾选框
