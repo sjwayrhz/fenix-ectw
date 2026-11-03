@@ -1983,6 +1983,8 @@ LoginAccount(*) {
     ; 等结果：可能出二级密码键盘，也可能直接出登陆确认，两个还可能
     ; 先后都出现。一轮等 20 秒；输完二级密码后再重新等 20 秒。
     PinDone := false
+    RejectedAnchors := []
+    LastPinError := ""
     Deadline := A_TickCount + 20000
     while (A_TickCount < Deadline) {
         YX := 0
@@ -1996,34 +1998,79 @@ LoginAccount(*) {
         PX := 0
         PY := 0
         PErr := 0
-        if (!PinDone && FindPinLabel(&PX, &PY, &PErr)) {
+        if (!PinDone && FindPinLabel(&PX, &PY, &PErr, RejectedAnchors)) {
             LogFind("login4: pin label found at " PX "," PY " err " PErr)
             ErrText := EnterSecondPassword(PX, PY)
-            if (ErrText != "") {
+            if (ErrText = "") {
+                PinDone := true
+                Deadline := A_TickCount + 20000
+            } else if (SubStr(ErrText, 1, 6) = "RETRY:") {
+                ; 数字没认准、一下都没点：这个锚点多半是假的，记下来跳过，
+                ; 在剩下的等待时间里继续找真键盘，不直接失败。
+                LastPinError := SubStr(ErrText, 7)
+                RejectedAnchors.Push([PX, PY])
+                LogFind("login4: anchor " PX "," PY " rejected (digits not validated), keep waiting")
+            } else {
                 MyGui.Show()
                 MsgBox(ErrText, "账号登陆", "OK Icon!")
                 return
             }
-            PinDone := true
-            Deadline := A_TickCount + 20000
         }
         Sleep(400)
     }
     LogFind("login4: wait timeout 20s, PinDone=" PinDone)
     MyGui.Show()
-    MsgBox("等了 20 秒，既没见到二级密码键盘，也没见到登陆确认。可能卡在别的画面了，看一下游戏画面。", "账号登陆", "OK Icon!")
+    if (LastPinError != "") {
+        MsgBox(LastPinError, "账号登陆", "OK Icon!")
+    } else {
+        MsgBox("等了 20 秒，既没见到二级密码键盘，也没见到登陆确认。可能卡在别的画面了，看一下游戏画面。", "账号登陆", "OK Icon!")
+    }
 }
 
 ; 找「2级密码」黄字：必须用紧容错。2026-11-04 她机器实测：默认容错 0.1
 ; 会先命中屏幕上另一处长得像的黄字（假位置，误差 0.02~0.05），真黄字
 ; 误差 ≤0.02。FindText 返回扫描顺序里第一个达标的位置、不是最像的那个，
 ; 所以从紧到松逐级试，命中即停。
-FindPinLabel(&PX, &PY, &UsedErr) {
+FindPinLabel(&PX, &PY, &UsedErr, Rejected) {
     global PinLabelText
     UsedErr := 0
     for Err in [0.02, 0.03, 0.05] {
-        if (FindPattern(PinLabelText, 0, 0, A_ScreenWidth, A_ScreenHeight, &PX, &PY, Err, Err)) {
+        TX := 0
+        TY := 0
+        if (!FindPattern(PinLabelText, 0, 0, A_ScreenWidth, A_ScreenHeight, &TX, &TY, Err, Err)) {
+            continue
+        }
+        if (!AnchorRejected(TX, TY, Rejected)) {
+            PX := TX
+            PY := TY
             UsedErr := Err
+            return true
+        }
+        ; 这个位置已经验过是假锚点：再找它下方和上方，看有没有别的候选
+        BX := 0
+        BY := 0
+        if (FindPattern(PinLabelText, 0, TY + 30, A_ScreenWidth, A_ScreenHeight, &BX, &BY, Err, Err)
+            && !AnchorRejected(BX, BY, Rejected)) {
+            PX := BX
+            PY := BY
+            UsedErr := Err
+            return true
+        }
+        if (FindPattern(PinLabelText, 0, 0, A_ScreenWidth, TY - 30, &BX, &BY, Err, Err)
+            && !AnchorRejected(BX, BY, Rejected)) {
+            PX := BX
+            PY := BY
+            UsedErr := Err
+            return true
+        }
+    }
+    return false
+}
+
+; 某个黄字位置是不是已经被验过是假锚点（10 像素内算同一个）。
+AnchorRejected(X, Y, Rejected) {
+    for P in Rejected {
+        if (Abs(P[1] - X) <= 10 && Abs(P[2] - Y) <= 10) {
             return true
         }
     }
@@ -2061,7 +2108,7 @@ EnterSecondPassword(AnchorX, AnchorY) {
         ; 距离够小、和第二名拉得开，才敢点这一格
         if (Best > 12 || (Second - Best) < 5) {
             LogFind("login4: digit " Want " REJECTED by gate")
-            return "二级密码的数字 " Want " 没把握（最像的格子差 " Best " 个点，第二名差 " Second " 个点）。已停下，一下都没点，先看一下游戏画面。"
+            return "RETRY:二级密码的数字 " Want " 没把握（最像的格子差 " Best " 个点，第二名差 " Second " 个点）。已停下，一下都没点，先看一下游戏画面。"
         }
         HitIdxs.Push(BestIdx)
     }
