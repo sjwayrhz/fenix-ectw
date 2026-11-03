@@ -67,6 +67,14 @@ DetectHiddenWindows(true)
 ;        只做两点点击，右键点击不启动
 ;      三个按钮互斥：点另一个会先停掉当前模式再启动新模式；
 ;      再点一次正在运行的按钮就是停止。
+;   4. 账号登陆（没有快捷键，只点按钮）：账号存在同目录的
+;      accounts 文件夹里，一个账号一个 txt（文件名是账号名，
+;      第一行是密码；点「保存」只生成空文件，密码自己填）。
+;      点「登陆」后脚本找停在登陆画面的客户端（先当前桌面、
+;      再逐个桌面找 Login 按钮），自动填账号密码、点 Login；
+;      出二级密码键盘就按写死的二级密码点数字（数字靠模板
+;      比对认，原理见 PinTemplates 上面的注释），点「输入」；
+;      出登陆确认就点「是」。
 ; 使用：双击运行本脚本，点按钮或按快捷键即可。
 ;       F11 开关桌面轮询，F12 开关开箱子（兼取点键）。
 ;       桌面轮询有一个「启停键 F11」按钮，右边有个
@@ -131,6 +139,7 @@ RecordLastL := false      ; 上次轮询时左键是不是按着
 RecordLastR := false      ; 上次轮询时右键是不是按着
 PlayingBack := false      ; 是不是正在回放
 RecordsDir := A_ScriptDir "\records"  ; 保存的录制文件夹，一个录制一个 .txt 文件
+AccountsDir := A_ScriptDir "\accounts"  ; 保存的账号文件夹，一个账号一个 .txt 文件（文件名是账号名，内容第一行是密码）
 LoadedRecordName := ""  ; 当前内存里的录制是从哪个文件读来的（空表示刚录的、没保存）
 ; 录键盘时要轮询的按键（脚本自己的热键 F1-F5、F8、F9、F11、F12、飘号键不录，
 ; 免得录进去又触发脚本功能）。字母、数字、空格、回车、Tab、Esc、退格、
@@ -184,6 +193,44 @@ DarkText := "|<Dark>*120$42.U000001DzzzzzxTvzzzryTszzz7yTsTzy7yTwDzwDyTw7zsDyTz7
 UnknownText := "|<Unknown>*82$46.zzzzzzzvzzzzzzzjzzzzzzzk000000yTzzzzztdzTzzyzqjwzzznzSzszzwTxfzVzzVzqjz3zwDzOzzDznzxfzwTyDzqjzszlzzOzznzDzxfzzbtzzqjzzDDzzOzzytzzxvzzxjzzrjzztzzzSzzzrzzxfzzzzzzqjzzzzzzOzzzzzzxfzzzzzzqjrzzzyzOzzzzzzxfzzzzzzqjzzzzzzOzyTztzxfztzzbzqjzzzzzzOzzzzzzxfzzzzzzqjzzzzzzOzzzPzzxfzzzzzzyjjzzzzTTzzzzzzzi000000SzzzzzzzvzzzzLzzz"
 ProjectorText := "|<projector>*79$46.s000000TDzzzzzwwzzzzzzurzzzzzzfTzVzzzyhzw3zzzurzm7zzzfTy0Nzzyhzt3y3zurzk7sLzfTzEQBTyhzx7koTurzm711zfTz8SOTyhzUXs7zurw0AgTzfTU00kTyhy03k/Turl07k5zfTY030DyhyG00Svurxj007zfTszk7zyhzkzkTzurzUzszzfTyET7zyhztkATzurznsDzzfTzbwTzyhzzbzzzurzzbzxzfTzzbzzyhzzznzzurzzzzzzfzzzzzzzj000000D"
 ProjectorTextOld := "|<projector>*68$45.Tzzzzzzv0000003Hzzzzzz+TzzzzzxLzwLzzzezz1zzzxLzk7zzzezy0zzzxLzU6T3zezw0s1zxLzU3EHzezw0sERxLzo701zezy0s0DxLzm764rezk0k1axLw084Srez001UCxLk0601zey80y0jxLl00k1jez8006NxLt0007jezUz07zxLz3z0zzezs3y7zxLzU7lzrezwM6DyxLzVs7zzezz7szzxLzwDzzzezzsTzbxLzzszbzezzzkXzxLzzzzzzfTzzzzzzQ000000vzzzzzzzSnk0008I"
+
+; ===== 功能 4（账号登陆）用的图案和模板 =====
+; LoginBtn：登陆画面的圆形 Login 按钮（从她发的 1.jpg 裁的，73x65，阈值 89）。
+; PinLabel：二级密码键盘右边的黄色「2级密码」四个字（从 2.jpg 裁的，56x12，
+; 阈值 89）。找到它就等于找到了数字键盘；它还是认数字的锚点：10 个数字格
+; 的中心、密码输入框的位置，都按相对它的固定偏移算（偏移从 2.jpg 量出来）。
+; PinOK：输完二级密码后变亮的「输入」按钮（从 3.jpg 裁的，60x12，阈值 149）；
+; 没变亮时（2.jpg 里的灰样子）认不到它，正好拿来等它变亮。
+; YesBtn：登陆确认框里的「是」字（从 4.jpg 裁的，44x12，阈值 153）。
+; 四个图案都在原图上验过：本图回找误差 0，图里别处最好的误认误差都在 0.44 以上，
+; 用默认容错 0.1 不会认错。
+LoginBtnText := "|<LoginBtn>*89$73.zzzUTzw3zzzzzzz3w01sTzzzzzy7UA01VzzzzzwQDzzsATzzzzwtzzzzVXzzzzsnw001w8zzzztrs0007XDzzztbUDzy0wlzzzlj0zzzs7ATzzlj3zzzz1l7zzty3zzzzsCFzzti7zzzzz3Yzzty7zzzzVktDztiDzzzzsCCHzsiDzzzzz3X8zwyDzzzzzssmTwzDzzzzzyAAbyT7zzzzzzX7HzT7zzzzzzslozjbzzzzzzyQOTzXzzzzzzziCbzXzzzzzzzzXHznzzzzzzzztgztzzzzzzzzwOTszzzzzzzzyBjwzzzzzzzzzXHyTzzzzzzzzldzDzzzzzzzzwwzDzzzzzzzzyTTbzzzzzzzzzDjnzwzzzszzzbntzwTzzwTzzntwzyDzzSDzzxoyTz7sS0g7zyuTDzXs6021zzRDbzlwl4F4TzibnzswM50aDzrHtzwSCHUH7zvdwzyD6809XzxoyTzUE414lzwmTDzkA60WMzyPDbzzzz0TzzzDjnzzzzkTzzzbbtzzzzzzzzzmHyTzzzzzzzzl9zDzzzzzzzztxzbzzzzzzzzwwztzzzzzzzzwOTwzzzzzzzzyTTqDzzzzzzzyBDzbzzzzzzzzDjutzzzzzzzz7bxwTzzzzzzzbryLDzzzzzzzXnzBXzzzzzzzXvzXszzzzzzzXtzkiDzzzzzzXdzsPXzzzzzzXxzxbszzzzzzXwryty7zzzzzXwtzSPlzzzzz3wwTzawDzzzy3gzDztz1zzzw7wzXs6Ts7zzkTws0Q1Xz07w0zwsE7"
+PinLabelText := "|<PinLabel>*89$56.jzxzs7zzzu1U0VxzzzxrPjirTzzzprxThrzzznPphrRzzzyqBKgEDzzzRus+LvzzzlCtzpyzzzzpTrx0jzzzXjRr7vzzzqprRpyzzzzPg0TyTzzzU"
+PinOKText := "|<PinOK>*149$60.tnwTzzzzzztVzDzzzzzzUAzbzzzzzzm0TbzzzzzzVzz3zzzzzzU6T3zzzzzzs0T3zzzzzzs0SNzzzzzzU0SNzzzzzzs0Qwzzzzzzs6NyTzzzzzs4HzDzzzzzU"
+YesBtnText := "|<YesBtn>*153$44.zzs3zzzzzyyzzzzzzUDzzzzzvvzzzzzy0zzzzzzzzzzzzzU0zzzzzzrzzzzzzg7zzzzzvTzzzzzxLzzzzzys3zzzU"
+; 二级密码写死（她定的，所有账号同一个）。数字不做 FindText 图案：字形太像，
+; 图案匹配分不开 0 和 8、6 和 8（验过：拿 0 的图案去找 8，误差只有 0.006）。
+; 改成模板比对：以 PinLabel 为锚点算出每个格子的中心，在格子中心 17 宽 x 25 高
+; 的范围里逐点采样灰度（>120 算亮点），和 PinTemplates 里 10 个模板逐点比，
+; 差得最少的模板就是这个格子的数字。模板按同样的采样方法从 2.jpg 生成，
+; 拿 3.jpg 交叉验过：10 个格子全认对，最小的对错差距也有 5 个点。
+SecondPassword := "2573"
+PinCellOffsets := [[-231, -23], [-195, -23], [-159, -23], [-231, 13], [-195, 13], [-159, 13], [-231, 49], [-195, 49], [-159, 49], [-231, 85]]  ; 10 个数字格的中心相对 PinLabel 中心的偏移（行优先；格子里是哪个数字靠模板认，不靠位置）
+PinBoxOffset := [-70, 2]  ; 二级密码输入框中心相对 PinLabel 中心的偏移
+LoginFieldOffset := [28, -138]  ; 账号输入框中心相对 Login 按钮中心的偏移
+PinTemplates := Map(
+    "0", "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011111000000000001100011000000000011000110000000000110001100000000001100011000000000011000110000000000110001100000000001100011000000000011000110000000000110001100000000001100011000000000001111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "1", "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000110000000000000111100000000000000011000000000000000110000000000000001100000000000000011000000000000000110000000000000001100000000000000011000000000000000110000000000000001100000000000000011000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "2", "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001111100000000000110001100000000001100011000000000000000110000000000000001100000000000000110000000000000011000000000000001100000000000000110000000000000011000000000000000110000000000000001111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "3", "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000011111000000000001100011000000000011000110000000000000001100000000000000011000000000001111100000000000000001100000000000000011000000000000000110000000000110001100000000001100011000000000001111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "4", "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000111000000000000011110000000000000111100000000000011111000000000000110110000000000011001100000000000110011000000000011000110000000000110001100000000001111111100000000000000110000000000000001100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "5", "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001111111000000000011000000000000000110000000000000001100000000000000011111100000000000110001100000000000000011000000000000000110000000000000001100000000001100011000000000011000110000000000011111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "6", "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000111110000000000011000110000000000110001100000000001100000000000000011000000000000000111111000000000001100011000000000011000110000000000110001100000000001100011000000000011000110000000000011111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "7", "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001111111000000000000000110000000000000001100000000000000110000000000000001100000000000000110000000000000001100000000000000110000000000000001100000000000000011000000000000000110000000000000001100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "8", "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000111110000000000011000110000000000110001100000000001100011000000000011000110000000000111111100000000001100011000000000011000110000000000110001100000000001100011000000000011000110000000000011111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "9", "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000111110000000000011000110000000000110001100000000001100011000000000011000110000000000110001100000000000111111000000000000000110000000000000001100000000001100011000000000011000110000000000011111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+)
+
 
 ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键（抽奖），"two" = 仅两点点击（合成）
 LastClickMode := "" ; F12 启动时用上次点过的开箱子模式；刚打开脚本还没点过模式按钮时为空，F12 按了没反应（第一次必须先点按钮）。只记本次运行，不存配置，关掉脚本就没了
@@ -248,15 +295,16 @@ HelpText := "快捷键说明"
     . "`nF4：回放录制，点按回放 1 次，按住约 2 秒弹出对话框填重复次数（默认 0 = 无限制，填 3 就回放 3 次），回放中再按 F4 立刻停（快捷切换开启时才管用）"
     . "`nF5：开始 / 停止录制，回放中按 F5 也立刻停（快捷切换开启时才管用）"
     . "`nEsc：取点时取消"
+    . "`n账号登陆（界面最下面一节，没有快捷键）：在下拉框里输账号名点「保存」，脚本目录的 accounts 文件夹里会生成一个空的 账号名.txt，自己打开把密码填在第一行；选好账号点「登陆」，脚本自动填账号和密码、点 Login，需要二级密码时自动输（二级密码写死在脚本里，所有账号同一个），出现登陆确认就点「是」；点「删除」删掉这个账号文件"
 ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
     if (HelpShown) {
         txtHelp.Visible := false
-        MyGui.Show("w380 h436")
+        MyGui.Show("w380 h511")
         HelpShown := false
     } else {
         txtHelp.Visible := true
-        MyGui.Show("w700 h436")
+        MyGui.Show("w700 h511")
         HelpShown := true
     }
 }
@@ -322,17 +370,33 @@ btnDeleteRecord := MyGui.Add("Button", "x310 y338 w55 h30", "删除")
 btnDeleteRecord.OnEvent("Click", MinimizeAndRun(DeleteRecord))
 MyGui.Add("Text", "x10 y378 w360 h2 +0x1000")
 
+; ---- 功能 4：账号登陆 ----
+; 账号存在脚本目录下的 accounts 文件夹里，一个账号一个文件，文件名就是
+; 账号名，文件内容的第一行是密码（保存只生成空文件，密码自己打开文件填）。
+; 下拉框里可以直接输新账号名（点保存就是新建），也可以选已有的账号
+; （点登陆、删除）。这一节没有状态行，登陆成功只弹一个短提示，
+; 失败弹 MsgBox 说明卡在哪一步。
+MyGui.Add("Text", "x10 y388 w360", "4. 账号登陆")
+cmbAccounts := MyGui.Add("ComboBox", "x10 y413 w170", [])
+btnSaveAccount := MyGui.Add("Button", "x190 y413 w55 h30", "保存")
+btnSaveAccount.OnEvent("Click", MinimizeAndRun(SaveAccount))
+btnLoginAccount := MyGui.Add("Button", "x250 y413 w55 h30", "登陆")
+btnLoginAccount.OnEvent("Click", MinimizeAndRun(LoginAccount))
+btnDeleteAccount := MyGui.Add("Button", "x310 y413 w55 h30", "删除")
+btnDeleteAccount.OnEvent("Click", MinimizeAndRun(DeleteAccount))
+MyGui.Add("Text", "x10 y453 w360 h2 +0x1000")
+
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y388 w86 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y463 w86 h30", "全部停止")
 btnStopAll.OnEvent("Click", MinimizeAndRun(StopAll))
-btnSaveConfig := MyGui.Add("Button", "x101 y388 w86 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x101 y463 w86 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", MinimizeAndRun(SaveConfig))
-btnHelp := MyGui.Add("Button", "x192 y388 w86 h30", "使用说明")
+btnHelp := MyGui.Add("Button", "x192 y463 w86 h30", "使用说明")
 btnHelp.OnEvent("Click", ToggleHelp)
-btnExit := MyGui.Add("Button", "x283 y388 w86 h30", "退出")
+btnExit := MyGui.Add("Button", "x283 y463 w86 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 ; 使用说明面板（窗口右侧，平时藏着，点「使用说明」才展开显示）。
-txtHelp := MyGui.Add("Edit", "x390 y10 w300 h426 +ReadOnly +Multi +VScroll", HelpText)
+txtHelp := MyGui.Add("Edit", "x390 y10 w300 h501 +ReadOnly +Multi +VScroll", HelpText)
 txtHelp.Visible := false
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -362,8 +426,9 @@ if (DesktopCount < 1) {
 }
 
 RefreshRecordList()
+RefreshAccountList()
 
-MyGui.Show("w380 h436")
+MyGui.Show("w380 h511")
 
 ; 打开脚本时默认开启功能 3（快捷切换）：和点「开始」按钮走
 ; 同一条路，开启后 2 秒还会把三个桌面的游戏窗口居中。
@@ -1760,6 +1825,270 @@ DeleteRecord(*) {
     cmbRecords.Text := ""
     RefreshRecordList()
     ShowTempToolTip("已删除「" Name "」")
+}
+
+; ===== 功能 4：账号登陆 =====
+; 账号存在脚本目录下的 accounts 文件夹里，一个账号一个 .txt 文件，
+; 文件名就是账号名，文件内容的第一行是密码。下拉框只列账号名。
+
+; 刷新下拉框里的账号列表（读 accounts 文件夹里的 .txt 文件名）。
+RefreshAccountList() {
+    global cmbAccounts, AccountsDir
+    cmbAccounts.Delete()
+    if (!DirExist(AccountsDir)) {
+        return
+    }
+    Loop Files, AccountsDir "\*.txt" {
+        Name := SubStr(A_LoopFileName, 1, -4)
+        cmbAccounts.Add([Name])
+    }
+}
+
+; 保存：按下拉框里输的账号名生成一个空的账号文件，密码自己打开文件
+; 填在第一行。已有的账号不覆盖（防止把填好的密码冲掉）。
+SaveAccount(*) {
+    global AccountsDir, cmbAccounts
+    Name := Trim(cmbAccounts.Text)
+    if (Name = "") {
+        MsgBox("先在下拉框里输一个账号名，再点保存。", "保存账号", "OK Icon!")
+        return
+    }
+    if (RegExMatch(Name, '[\\/:*?"<>|]')) {
+        MsgBox("账号名里不能有 \ / : * ? `" < > | 这些字符。", "保存账号", "OK Icon!")
+        return
+    }
+    DirCreate(AccountsDir)
+    Path := AccountsDir "\" Name ".txt"
+    if (FileExist(Path)) {
+        MsgBox("已经有叫「" Name "」的账号了，不覆盖。要改密码就打开 accounts\" Name ".txt 改第一行。", "保存账号", "OK Icon!")
+        return
+    }
+    try {
+        FileAppend("", Path)
+    } catch as Err {
+        MsgBox("保存失败：" Err.Message, "保存账号", "OK Icon!")
+        return
+    }
+    RefreshAccountList()
+    cmbAccounts.Text := Name
+    MsgBox("已生成 accounts\" Name ".txt。打开它，把密码填在第一行，只填第一行就行。", "保存账号", "OK Icon!")
+}
+
+; 删除：删掉下拉框里选中的账号文件。
+DeleteAccount(*) {
+    global AccountsDir, cmbAccounts
+    Name := Trim(cmbAccounts.Text)
+    if (Name = "") {
+        MsgBox("先在下拉框里选一个账号。", "删除账号", "OK Icon!")
+        return
+    }
+    Path := AccountsDir "\" Name ".txt"
+    if (!FileExist(Path)) {
+        MsgBox("没有叫「" Name "」的账号。", "删除账号", "OK Icon!")
+        return
+    }
+    Result := MsgBox("确定要删除账号「" Name "」吗？（删的是 accounts\" Name ".txt，里面有密码）", "删除账号", "YesNo Icon?")
+    if (Result = "No") {
+        return
+    }
+    try {
+        FileDelete(Path)
+    } catch as Err {
+        MsgBox("删除失败：" Err.Message, "删除账号", "OK Icon!")
+        return
+    }
+    cmbAccounts.Text := ""
+    RefreshAccountList()
+    ShowTempToolTip("已删除账号「" Name "」")
+}
+
+; 登陆：找停在登陆画面的客户端，自动填账号密码、点 Login；
+; 需要二级密码就自动输（写死的二级密码）；出登陆确认就点「是」。
+; 这一节没有状态行：成功只弹一个短提示，失败弹 MsgBox 说明卡在哪一步。
+LoginAccount(*) {
+    global cmbAccounts, AccountsDir, MyGui
+    global LoginBtnText, YesBtnText, PinLabelText, LoginFieldOffset
+    global DesktopCount, GetCurrentDesktopNumberProc
+    Name := Trim(cmbAccounts.Text)
+    if (Name = "") {
+        MsgBox("先在下拉框里选一个账号，或者输一个已有的账号名。", "账号登陆", "OK Icon!")
+        return
+    }
+    Path := AccountsDir "\" Name ".txt"
+    if (!FileExist(Path)) {
+        MsgBox("没有叫「" Name "」的账号（accounts 文件夹里没有这个 txt）。", "账号登陆", "OK Icon!")
+        return
+    }
+    try {
+        Content := FileRead(Path)
+    } catch as Err {
+        MsgBox("读账号文件失败：" Err.Message, "账号登陆", "OK Icon!")
+        return
+    }
+    Password := ""
+    Loop Parse, Content, "`n" {
+        Password := Trim(A_LoopField, "`r `t")
+        break
+    }
+    if (Password = "") {
+        MsgBox("「" Name "」的密码是空的。打开 accounts\" Name ".txt，把密码填在第一行。", "账号登陆", "OK Icon!")
+        return
+    }
+    ; 找登陆画面：先在当前桌面找 Login 按钮，找不到就逐个桌面切过去找，
+    ; 都找不到就切回原来的桌面报错。找到后就留在那个桌面登陆。
+    OrigDesktop := -1
+    if (GetCurrentDesktopNumberProc) {
+        try OrigDesktop := DllCall(GetCurrentDesktopNumberProc, "Int")
+    }
+    LX := 0
+    LY := 0
+    FoundLogin := FindPattern(LoginBtnText, 0, 0, A_ScreenWidth, A_ScreenHeight, &LX, &LY)
+    if (!FoundLogin && DesktopCount > 1) {
+        Loop DesktopCount {
+            D := A_Index - 1
+            if (D = OrigDesktop) {
+                continue
+            }
+            GoToDesktopAndWait(D)
+            Sleep(700)
+            if (FindPattern(LoginBtnText, 0, 0, A_ScreenWidth, A_ScreenHeight, &LX, &LY)) {
+                FoundLogin := true
+                break
+            }
+        }
+    }
+    if (!FoundLogin) {
+        if (OrigDesktop >= 0) {
+            GoToDesktopAndWait(OrigDesktop)
+        }
+        MyGui.Show()
+        MsgBox("没找到游戏的 Login 按钮。先把客户端打开、停在登陆画面，再点登陆。", "账号登陆", "OK Icon!")
+        return
+    }
+    ; 点账号框、输账号、Tab、输密码、点 Login。每步之间留间隔，
+    ; 太快游戏反应不过来（她定的）。
+    Click(LX + LoginFieldOffset[1], LY + LoginFieldOffset[2])
+    Sleep(500)
+    SendText(Name)
+    Sleep(350)
+    Send("{Tab}")
+    Sleep(350)
+    SendText(Password)
+    Sleep(450)
+    Click(LX, LY)
+    ; 等结果：可能出二级密码键盘，也可能直接出登陆确认，两个还可能
+    ; 先后都出现。一轮等 20 秒；输完二级密码后再重新等 20 秒。
+    PinDone := false
+    Deadline := A_TickCount + 20000
+    while (A_TickCount < Deadline) {
+        YX := 0
+        YY := 0
+        if (FindPattern(YesBtnText, 0, 0, A_ScreenWidth, A_ScreenHeight, &YX, &YY)) {
+            Click(YX, YY)
+            ShowTempToolTip("登陆完成")
+            return
+        }
+        PX := 0
+        PY := 0
+        if (!PinDone && FindPattern(PinLabelText, 0, 0, A_ScreenWidth, A_ScreenHeight, &PX, &PY)) {
+            ErrText := EnterSecondPassword(PX, PY)
+            if (ErrText != "") {
+                MyGui.Show()
+                MsgBox(ErrText, "账号登陆", "OK Icon!")
+                return
+            }
+            PinDone := true
+            Deadline := A_TickCount + 20000
+        }
+        Sleep(400)
+    }
+    MyGui.Show()
+    MsgBox("等了 20 秒，既没见到二级密码键盘，也没见到登陆确认。可能卡在别的画面了，看一下游戏画面。", "账号登陆", "OK Icon!")
+}
+
+; 输二级密码：（AnchorX, AnchorY）是 PinLabel 图案的中心。
+; 先点输入框，再把 10 个数字格逐个认出来（模板比对），按写死的
+; 二级密码顺序点对应的格子，最后等「输入」按钮变亮再点它。
+; 成功返回空字符串，失败返回给用户看的说明文字。
+EnterSecondPassword(AnchorX, AnchorY) {
+    global PinCellOffsets, PinBoxOffset, PinOKText, SecondPassword
+    Click(AnchorX + PinBoxOffset[1], AnchorY + PinBoxOffset[2])
+    Sleep(450)
+    CellInfo := []
+    for Off in PinCellOffsets {
+        CellInfo.Push(ClassifyPinCell(AnchorX + Off[1], AnchorY + Off[2]))
+    }
+    Entered := ""
+    Loop Parse, SecondPassword {
+        Want := A_LoopField
+        HitIdx := 0
+        HitCount := 0
+        for Idx, Info in CellInfo {
+            ; 认成这个数字、距离够小、和第二名拉得开，才算数
+            if (Info[1] = Want && Info[2] <= 12 && (Info[3] - Info[2]) >= 3) {
+                HitIdx := Idx
+                HitCount++
+            }
+        }
+        if (HitCount != 1) {
+            return "二级密码的数字 " Want " 没认出来（符合的格子数：" HitCount "）。已停下" . (Entered != "" ? "，游戏里已经输了「" Entered "」，先检查一下游戏画面。" : "。")
+        }
+        Click(AnchorX + PinCellOffsets[HitIdx][1], AnchorY + PinCellOffsets[HitIdx][2])
+        Entered .= Want
+        Sleep(400)
+    }
+    Deadline := A_TickCount + 4000
+    while (A_TickCount < Deadline) {
+        OX := 0
+        OY := 0
+        if (FindPattern(PinOKText, 0, 0, A_ScreenWidth, A_ScreenHeight, &OX, &OY)) {
+            Click(OX, OY)
+            Sleep(500)
+            return ""
+        }
+        Sleep(300)
+    }
+    return "输完二级密码后，「输入」按钮没变亮。已停下，游戏里已经输了「" Entered "」，先检查一下游戏画面。"
+}
+
+; 认一个数字格：格子中心 17 宽 x 25 高的范围里逐点采样灰度
+; （公式和 FindText 一样，>120 算亮点），和 10 个模板逐点比，
+; 返回 [最像的数字, 差的点数, 第二名差的点数]。
+ClassifyPinCell(CX, CY) {
+    global PinTemplates
+    Sample := ""
+    Loop 25 {
+        DY := A_Index - 13
+        Loop 17 {
+            DX := A_Index - 9
+            C := PixelGetColor(CX + DX, CY + DY)
+            R := (C >> 16) & 0xFF
+            G := (C >> 8) & 0xFF
+            B := C & 0xFF
+            Gray := (R * 38 + G * 75 + B * 15) >> 7
+            Sample .= (Gray > 120 ? "1" : "0")
+        }
+    }
+    BestDigit := ""
+    BestDist := 100000
+    SecondDist := 100000
+    for Digit, Template in PinTemplates {
+        Dist := 0
+        TLen := StrLen(Template)
+        Loop TLen {
+            if (SubStr(Sample, A_Index, 1) != SubStr(Template, A_Index, 1)) {
+                Dist++
+            }
+        }
+        if (Dist < BestDist) {
+            SecondDist := BestDist
+            BestDist := Dist
+            BestDigit := Digit
+        } else if (Dist < SecondDist) {
+            SecondDist := Dist
+        }
+    }
+    return [BestDigit, BestDist, SecondDist]
 }
 
 ; ===== 快捷键 =====
