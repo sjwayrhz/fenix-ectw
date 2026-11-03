@@ -210,10 +210,13 @@ PinOKText := "|<PinOK>*149$60.tnwTzzzzzztVzDzzzzzzUAzbzzzzzzm0TbzzzzzzVzz3zzzzzz
 YesBtnText := "|<YesBtn>*153$44.zzs3zzzzzyyzzzzzzUDzzzzzvvzzzzzy0zzzzzzzzzzzzzU0zzzzzzrzzzzzzg7zzzzzvTzzzzzxLzzzzzys3zzzU"
 ; 二级密码写死（她定的，所有账号同一个）。数字不做 FindText 图案：字形太像，
 ; 图案匹配分不开 0 和 8、6 和 8（验过：拿 0 的图案去找 8，误差只有 0.006）。
-; 改成模板比对：以 PinLabel 为锚点算出每个格子的中心，在格子中心 17 宽 x 25 高
-; 的范围里逐点采样灰度（>120 算亮点），和 PinTemplates 里 10 个模板逐点比，
-; 差得最少的模板就是这个格子的数字。模板按同样的采样方法从 2.jpg 生成，
-; 拿 3.jpg 交叉验过：10 个格子全认对，最小的对错差距也有 5 个点。
+; 而且密码是写死的，根本不用认全 10 个数字：以 PinLabel 为锚点把 10 个格子
+; 都采样下来，只拿密码里那几个数字的模板逐格比，每个数字点距离最小的那格。
+; 模板是 17x25 的点阵，按同样的采样方法从 2.jpg 生成，拿 3.jpg 交叉验过。
+; 2026-11-04 她机器实测定版：PinLabel 必须用紧容错找（见 FindPinLabel，
+; 默认 0.1 会命中别处的假黄字）；格子采样带 ±2 平移比对——实屏字形整体
+; 偏左 1 像素，不平移距离 21~73 会认错，平移对齐后 0~1；四个密码数字
+; 当时的最小距离 0~1、和第二名的差距 11~27。
 SecondPassword := "2573"
 PinCellOffsets := [[-231, -23], [-195, -23], [-159, -23], [-231, 13], [-195, 13], [-159, 13], [-231, 49], [-195, 49], [-159, 49], [-231, 85]]  ; 10 个数字格的中心相对 PinLabel 中心的偏移（行优先；格子里是哪个数字靠模板认，不靠位置）
 PinBoxOffset := [-70, 2]  ; 二级密码输入框中心相对 PinLabel 中心的偏移
@@ -1990,7 +1993,7 @@ LoginAccount(*) {
         }
         PX := 0
         PY := 0
-        if (!PinDone && FindPattern(PinLabelText, 0, 0, A_ScreenWidth, A_ScreenHeight, &PX, &PY)) {
+        if (!PinDone && FindPinLabel(&PX, &PY)) {
             ErrText := EnterSecondPassword(PX, PY)
             if (ErrText != "") {
                 MyGui.Show()
@@ -2006,35 +2009,61 @@ LoginAccount(*) {
     MsgBox("等了 20 秒，既没见到二级密码键盘，也没见到登陆确认。可能卡在别的画面了，看一下游戏画面。", "账号登陆", "OK Icon!")
 }
 
+; 找「2级密码」黄字：必须用紧容错。2026-11-04 她机器实测：默认容错 0.1
+; 会先命中屏幕上另一处长得像的黄字（假位置，误差 0.02~0.05），真黄字
+; 误差 ≤0.02。FindText 返回扫描顺序里第一个达标的位置、不是最像的那个，
+; 所以从紧到松逐级试，命中即停。
+FindPinLabel(&PX, &PY) {
+    global PinLabelText
+    for Err in [0.02, 0.03, 0.05] {
+        if (FindPattern(PinLabelText, 0, 0, A_ScreenWidth, A_ScreenHeight, &PX, &PY, Err, Err)) {
+            return true
+        }
+    }
+    return false
+}
+
 ; 输二级密码：（AnchorX, AnchorY）是 PinLabel 图案的中心。
-; 先点输入框，再把 10 个数字格逐个认出来（模板比对），按写死的
-; 二级密码顺序点对应的格子，最后等「输入」按钮变亮再点它。
-; 成功返回空字符串，失败返回给用户看的说明文字。
+; 先认后点：把 10 个格子都采样下来，只找写死密码的那几个数字——每个
+; 数字在 10 个格子里挑距离最小的那格，距离和差距都过关了才开始点：
+; 先点输入框，再按密码顺序点格子，最后等「输入」按钮变亮再点它。
+; 成功返回空字符串；失败返回说明文字，且失败时一下都没点。
 EnterSecondPassword(AnchorX, AnchorY) {
     global PinCellOffsets, PinBoxOffset, PinOKText, SecondPassword
-    Click(AnchorX + PinBoxOffset[1], AnchorY + PinBoxOffset[2])
-    Sleep(450)
-    CellInfo := []
+    CellRows := []
     for Off in PinCellOffsets {
-        CellInfo.Push(ClassifyPinCell(AnchorX + Off[1], AnchorY + Off[2]))
+        CellRows.Push(SamplePinCell(AnchorX + Off[1], AnchorY + Off[2]))
     }
-    Entered := ""
+    HitIdxs := []
     Loop Parse, SecondPassword {
         Want := A_LoopField
-        HitIdx := 0
-        HitCount := 0
-        for Idx, Info in CellInfo {
-            ; 认成这个数字、距离够小、和第二名拉得开，才算数
-            if (Info[1] = Want && Info[2] <= 12 && (Info[3] - Info[2]) >= 3) {
-                HitIdx := Idx
-                HitCount++
+        Best := 100000
+        Second := 100000
+        BestIdx := 0
+        for Idx, Rows in CellRows {
+            Dist := PinDistToDigit(Rows, Want)
+            if (Dist < Best) {
+                Second := Best
+                Best := Dist
+                BestIdx := Idx
+            } else if (Dist < Second) {
+                Second := Dist
             }
         }
-        if (HitCount != 1) {
-            return "二级密码的数字 " Want " 没认出来（符合的格子数：" HitCount "）。已停下" . (Entered != "" ? "，游戏里已经输了「" Entered "」，先检查一下游戏画面。" : "。")
+        ; 距离够小、和第二名拉得开，才敢点这一格
+        if (Best > 12 || (Second - Best) < 5) {
+            return "二级密码的数字 " Want " 没把握（最像的格子差 " Best " 个点，第二名差 " Second " 个点）。已停下，一下都没点，先看一下游戏画面。"
         }
+        HitIdxs.Push(BestIdx)
+    }
+    Click(AnchorX + PinBoxOffset[1], AnchorY + PinBoxOffset[2])
+    Sleep(450)
+    Entered := ""
+    Pos := 0
+    for HitIdx in HitIdxs {
+        Pos++
         Click(AnchorX + PinCellOffsets[HitIdx][1], AnchorY + PinCellOffsets[HitIdx][2])
-        Entered .= Want
+        Entered .= SubStr(SecondPassword, Pos, 1)
         Sleep(400)
     }
     Deadline := A_TickCount + 4000
@@ -2051,44 +2080,57 @@ EnterSecondPassword(AnchorX, AnchorY) {
     return "输完二级密码后，「输入」按钮没变亮。已停下，游戏里已经输了「" Entered "」，先检查一下游戏画面。"
 }
 
-; 认一个数字格：格子中心 17 宽 x 25 高的范围里逐点采样灰度
-; （公式和 FindText 一样，>120 算亮点），和 10 个模板逐点比，
-; 返回 [最像的数字, 差的点数, 第二名差的点数]。
-ClassifyPinCell(CX, CY) {
-    global PinTemplates
-    Sample := ""
-    Loop 25 {
-        DY := A_Index - 13
-        Loop 17 {
-            DX := A_Index - 9
+; 采样一个数字格：以格子中心为中点，21 宽 x 29 高逐点采样灰度
+; （公式和 FindText 一样，>120 算亮点），返回 29 个字符串（每行 21 个字符）。
+; 采样范围比模板（17x25）大一圈，是为了留出 ±2 的平移余量（见上面
+; PinTemplates 处的实测说明）。
+SamplePinCell(CX, CY) {
+    Rows := []
+    Loop 29 {
+        DY := A_Index - 15
+        RowStr := ""
+        Loop 21 {
+            DX := A_Index - 11
             C := PixelGetColor(CX + DX, CY + DY)
             R := (C >> 16) & 0xFF
             G := (C >> 8) & 0xFF
             B := C & 0xFF
             Gray := (R * 38 + G * 75 + B * 15) >> 7
-            Sample .= (Gray > 120 ? "1" : "0")
+            RowStr .= (Gray > 120 ? "1" : "0")
         }
+        Rows.Push(RowStr)
     }
-    BestDigit := ""
-    BestDist := 100000
-    SecondDist := 100000
-    for Digit, Template in PinTemplates {
-        Dist := 0
-        TLen := StrLen(Template)
-        Loop TLen {
-            if (SubStr(Sample, A_Index, 1) != SubStr(Template, A_Index, 1)) {
-                Dist++
+    return Rows
+}
+
+; 一个格子离某个数字模板有多远：在 ±2 平移范围内逐点比模板（17x25），
+; 取差得最少的那个平移。对应关系：模板第 R 行（0 起）在采样里是
+; 第 3+SY+R 行（1 起），从第 3+SX 列（1 起）取 17 个字符。
+PinDistToDigit(Rows, Digit) {
+    global PinTemplates
+    Template := PinTemplates[Digit]
+    Best := 100000
+    Loop 5 {
+        SY := A_Index - 3
+        Loop 5 {
+            SX := A_Index - 3
+            Dist := 0
+            Loop 25 {
+                R := A_Index - 1
+                WinRow := SubStr(Rows[3 + SY + R], 3 + SX, 17)
+                TplRow := SubStr(Template, R * 17 + 1, 17)
+                Loop 17 {
+                    if (SubStr(WinRow, A_Index, 1) != SubStr(TplRow, A_Index, 1)) {
+                        Dist++
+                    }
+                }
+            }
+            if (Dist < Best) {
+                Best := Dist
             }
         }
-        if (Dist < BestDist) {
-            SecondDist := BestDist
-            BestDist := Dist
-            BestDigit := Digit
-        } else if (Dist < SecondDist) {
-            SecondDist := Dist
-        }
     }
-    return [BestDigit, BestDist, SecondDist]
+    return Best
 }
 
 ; ===== 快捷键 =====
