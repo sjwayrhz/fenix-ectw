@@ -68,10 +68,10 @@ DetectHiddenWindows(true)
 ;      三个按钮互斥：点另一个会先停掉当前模式再启动新模式；
 ;      再点一次正在运行的按钮就是停止。
 ; 使用：双击运行本脚本，点按钮或按快捷键即可。
-;       F11 开关桌面轮询，F12 开关开箱子。
+;       F11 开关桌面轮询，F12 开关开箱子（兼取点键）。
 ;       桌面轮询有一个「启停键 F11」按钮，右边有个
-;       「使用女神的生命水」勾选框，勾上后右边出现冷却分钟下拉框；参数直接写死在代码里。开箱子的坐标用按钮取点（窗口会最小化，
-;       在屏幕上点一下就行），点“保存配置”会存到同目录的
+;       「使用女神的生命水」勾选框，勾上后右边出现冷却分钟下拉框；参数直接写死在代码里。开箱子的坐标用按钮取点（点取点按钮后窗口会最小化，
+;       把鼠标移到位置上按 F12 取点），点“保存配置”会存到同目录的
 ;       fenix_Config.ini，下次打开自动恢复。
 ;       关窗口或点“退出”即全部停止并退出。
 ; 注意：功能 1 需要 VirtualDesktopAccessor.dll 和 FindText.ahk
@@ -186,7 +186,9 @@ ProjectorText := "|<projector>*79$46.s000000TDzzzzzwwzzzzzzurzzzzzzfTzVzzzyhzw3z
 ProjectorTextOld := "|<projector>*68$45.Tzzzzzzv0000003Hzzzzzz+TzzzzzxLzwLzzzezz1zzzxLzk7zzzezy0zzzxLzU6T3zezw0s1zxLzU3EHzezw0sERxLzo701zezy0s0DxLzm764rezk0k1axLw084Srez001UCxLk0601zey80y0jxLl00k1jez8006NxLt0007jezUz07zxLz3z0zzezs3y7zxLzU7lzrezwM6DyxLzVs7zzezz7szzxLzwDzzzezzsTzbxLzzszbzezzzkXzxLzzzzzzfTzzzzzzQ000000vzzzzzzzSnk0008I"
 
 ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键（抽奖），"two" = 仅两点点击（合成）
-LastClickMode := "both" ; F12 启动时用上次的开箱子模式（第一次默认 both）；只记本次运行，不存配置
+LastClickMode := "" ; F12 启动时用上次点过的开箱子模式；刚打开脚本还没点过模式按钮时为空，F12 按了没反应（第一次必须先点按钮）。只记本次运行，不存配置，关掉脚本就没了
+CaptureTarget := 0  ; 0 = 没在取点；1 = 自动放入，2 = 开始精炼，3 = 箱子位置（点了取点按钮后，等按 F12 取点）
+CaptureTick := 0    ; 取点成功时的 TickCount；成功后 2 秒内 F12 不起作用，防误触
 TwoRunning := false
 TwoPhase := 0
 WaitAfterFirst := 1000    ; 点 1 后等，固定值
@@ -240,7 +242,7 @@ HelpShown := false
 HelpText := "快捷键说明"
     . "`n`nF11：开始 / 停止「桌面轮询」"
     . "`n「使用女神的生命水」勾选框（在轮询启停键按钮的右边，勾上才生效）：轮询到某个桌面没找到放映机图标、且这个桌面还没用过生命水，就按一次 F9 并记为已用过；之后再轮询到还是没放映机，不再按；等轮询到这个桌面又有放映机了，标记改回未用过，下次没放映机时再按 F9。三个桌面各记各的。勾选框右边的下拉框（勾上勾选框后才出现）是冷却分钟数：某个桌面按过 F9 后，选定的分钟数内不再考虑给它按 F9，时间到了、放映机还不在就再按一次；选 0 是不设冷却，和没有这个下拉框一样；选「不使用」等于没勾这个勾选框"
-    . "`nF12：开始 / 停止「开箱子」（开始时启动上次点的那个模式）"
+    . "`nF12：取点时按它取点（取点成功后 2 秒内按 F12 不起作用，防误触）；「开箱子」运行中按它停止；没运行时按它启动上次点过的模式（刚打开脚本还没点过模式按钮时，按 F12 没反应，第一次必须先点按钮；关掉脚本后上次模式不保留）"
     . "`n飘号键（1 左边）：开启 / 关闭「快捷切换」"
     . "`nF1 / F2 / F3：切到桌面 1 / 2 / 3（快捷切换开启时才管用）"
     . "`nF4：回放录制，点按回放 1 次，按住约 2 秒弹出对话框填重复次数（默认 0 = 无限制，填 3 就回放 3 次），回放中再按 F4 立刻停（快捷切换开启时才管用）"
@@ -250,11 +252,11 @@ ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
     if (HelpShown) {
         txtHelp.Visible := false
-        MyGui.Show("w380 h470")
+        MyGui.Show("w380 h436")
         HelpShown := false
     } else {
         txtHelp.Visible := true
-        MyGui.Show("w700 h470")
+        MyGui.Show("w700 h436")
         HelpShown := true
     }
 }
@@ -277,58 +279,60 @@ txtDesktopStatus := MyGui.Add("Text", "x10 y70 w360", "状态：未运行")
 MyGui.Add("Text", "x10 y90 w360 h2 +0x1000")
 
 ; ---- 功能 2：开箱子（两点点击 + 右键点击）----
-; 坐标不用手输数字：点下面三个按钮取点，窗口会最小化，
-; 在屏幕上点一下要记录的位置，按 Esc 取消。
+; 坐标不用手输数字：点下面三个取点按钮，窗口会最小化，
+; 把鼠标移到要记录的位置按 F12 取点（有「取点成功」提示），
+; 按 Esc 取消。取到的坐标不显示在界面上。
 MyGui.Add("Text", "x10 y100 w360", "2. 开箱子 (F12)")
-btnCapRight := MyGui.Add("Button", "x10 y122 w115 h30", "箱子位置")
+MyGui.SetFont("s9")
+btnCapRight := MyGui.Add("Button", "x10 y122 w115 h30", "箱子位置取点F12")
 btnCapRight.OnEvent("Click", (*) => CapturePos(3))
-btnCapP1 := MyGui.Add("Button", "x132 y122 w115 h30", "自动放入")
+btnCapP1 := MyGui.Add("Button", "x132 y122 w115 h30", "自动放入取点F12")
 btnCapP1.OnEvent("Click", (*) => CapturePos(1))
-btnCapP2 := MyGui.Add("Button", "x254 y122 w115 h30", "开始精炼")
+btnCapP2 := MyGui.Add("Button", "x254 y122 w115 h30", "开始精炼取点F12")
 btnCapP2.OnEvent("Click", (*) => CapturePos(2))
-txtClickPos := MyGui.Add("Text", "x10 y158 w360 h28", "")
-btnBoth := MyGui.Add("Button", "x10 y192 w150 h30", "两种点击同时操作")
+MyGui.SetFont("s10")
+btnBoth := MyGui.Add("Button", "x10 y158 w150 h30", "两种点击同时操作")
 btnBoth.OnEvent("Click", MinimizeAndRun(ToggleBoth))
-btnRightOnly := MyGui.Add("Button", "x165 y192 w100 h30", "抽奖")
+btnRightOnly := MyGui.Add("Button", "x165 y158 w100 h30", "抽奖")
 btnRightOnly.OnEvent("Click", MinimizeAndRun(ToggleRightOnly))
-btnSynth := MyGui.Add("Button", "x270 y192 w100 h30", "合成")
+btnSynth := MyGui.Add("Button", "x270 y158 w100 h30", "合成")
 btnSynth.OnEvent("Click", MinimizeAndRun(ToggleSynth))
-txtClickStatus := MyGui.Add("Text", "x10 y227 w360", "状态：未运行")
-MyGui.Add("Text", "x10 y247 w360 h2 +0x1000")
+txtClickStatus := MyGui.Add("Text", "x10 y193 w360", "状态：未运行")
+MyGui.Add("Text", "x10 y213 w360 h2 +0x1000")
 
 ; ---- 3. 快捷切换桌面 ----
-MyGui.Add("Text", "x10 y257 w360", "3. 快捷切换桌面 (~)")
-btnQuickStart := MyGui.Add("Button", "x10 y282 w175 h30", "开始：快捷切换")
+MyGui.Add("Text", "x10 y223 w360", "3. 快捷切换桌面 (~)")
+btnQuickStart := MyGui.Add("Button", "x10 y248 w175 h30", "开始：快捷切换")
 btnQuickStart.OnEvent("Click", MinimizeAndRun(StartQuickSwitch))
-btnQuickStop := MyGui.Add("Button", "x195 y282 w175 h30", "停止")
+btnQuickStop := MyGui.Add("Button", "x195 y248 w175 h30", "停止")
 btnQuickStop.OnEvent("Click", MinimizeAndRun(StopQuickSwitch))
 btnQuickStop.Enabled := false
-txtQuickStatus := MyGui.Add("Text", "x10 y322 w360", "状态：未录制")
+txtQuickStatus := MyGui.Add("Text", "x10 y288 w360", "状态：未录制")
 
 ; ---- 已保存的录制 ----
 ; 录制存在脚本目录下的 records 文件夹里，一个录制一个文件，文件名就是录制的名字。
 ; 下拉框里可以直接输新名字（点保存就是存成这个名字），也可以选已有的名字（点读取、删除）。
-MyGui.Add("Text", "x10 y347 w360", "已保存的录制")
-cmbRecords := MyGui.Add("ComboBox", "x10 y372 w170", [])
-btnSaveRecord := MyGui.Add("Button", "x190 y372 w55 h30", "保存")
+MyGui.Add("Text", "x10 y313 w360", "已保存的录制")
+cmbRecords := MyGui.Add("ComboBox", "x10 y338 w170", [])
+btnSaveRecord := MyGui.Add("Button", "x190 y338 w55 h30", "保存")
 btnSaveRecord.OnEvent("Click", MinimizeAndRun(SaveRecord))
-btnLoadRecord := MyGui.Add("Button", "x250 y372 w55 h30", "读取")
+btnLoadRecord := MyGui.Add("Button", "x250 y338 w55 h30", "读取")
 btnLoadRecord.OnEvent("Click", MinimizeAndRun(LoadRecord))
-btnDeleteRecord := MyGui.Add("Button", "x310 y372 w55 h30", "删除")
+btnDeleteRecord := MyGui.Add("Button", "x310 y338 w55 h30", "删除")
 btnDeleteRecord.OnEvent("Click", MinimizeAndRun(DeleteRecord))
-MyGui.Add("Text", "x10 y412 w360 h2 +0x1000")
+MyGui.Add("Text", "x10 y378 w360 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y422 w86 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y388 w86 h30", "全部停止")
 btnStopAll.OnEvent("Click", MinimizeAndRun(StopAll))
-btnSaveConfig := MyGui.Add("Button", "x101 y422 w86 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x101 y388 w86 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", MinimizeAndRun(SaveConfig))
-btnHelp := MyGui.Add("Button", "x192 y422 w86 h30", "使用说明")
+btnHelp := MyGui.Add("Button", "x192 y388 w86 h30", "使用说明")
 btnHelp.OnEvent("Click", ToggleHelp)
-btnExit := MyGui.Add("Button", "x283 y422 w86 h30", "退出")
+btnExit := MyGui.Add("Button", "x283 y388 w86 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 ; 使用说明面板（窗口右侧，平时藏着，点「使用说明」才展开显示）。
-txtHelp := MyGui.Add("Edit", "x390 y10 w300 h460 +ReadOnly +Multi +VScroll", HelpText)
+txtHelp := MyGui.Add("Edit", "x390 y10 w300 h426 +ReadOnly +Multi +VScroll", HelpText)
 txtHelp.Visible := false
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -357,10 +361,9 @@ if (DesktopCount < 1) {
     txtDesktopStatus.Text := "状态：不可用（DLL 加载失败，请检查同目录的 VirtualDesktopAccessor.dll）"
 }
 
-UpdateClickPosText()
 RefreshRecordList()
 
-MyGui.Show("w380 h470")
+MyGui.Show("w380 h436")
 
 ; 打开脚本时默认开启功能 3（快捷切换）：和点「开始」按钮走
 ; 同一条路，开启后 2 秒还会把三个桌面的游戏窗口居中。
@@ -1063,46 +1066,41 @@ PressXStep() {
 
 
 ; ===== 功能 2：开箱子 =====
-; 取点：点取点按钮后窗口最小化，在屏幕上点一下要记录的位置，
-; 按 Esc 取消。target: 1=自动放入(点 1)，2=开始精炼(点 2)，3=箱子位置(右键)。
-UpdateClickPosText() {
-    global txtClickPos, Point1X, Point1Y, Point2X, Point2Y, RightX, RightY
-    txtClickPos.Text := "箱子位置(" RightX ", " RightY ")  自动放入(" Point1X ", " Point1Y ")  开始精炼(" Point2X ", " Point2Y ")"
-}
-
+; 取点：点取点按钮后窗口最小化，把鼠标移到要记录的位置，
+; 按 F12 取点（F12 热键里调 FinishCapture），按 Esc 取消。
+; target: 1=自动放入(点 1)，2=开始精炼(点 2)，3=箱子位置(右键)。
 CapturePos(target) {
-    global MyGui, Point1X, Point1Y, Point2X, Point2Y, RightX, RightY
+    global MyGui, CaptureTarget
+    CaptureTarget := target
     MyGui.Minimize()
     Sleep(300)
-    KeyWait("LButton")
-    ToolTip("点一下要记录的位置，按 Esc 取消")
-    cancelled := false
-    while (true) {
-        if (GetKeyState("Escape", "P")) {
-            cancelled := true
-            break
-        }
-        if (GetKeyState("LButton", "P")) {
-            break
-        }
-        Sleep(50)
+    ShowTempToolTip("把鼠标移到要记录的位置，按 F12 取点，按 Esc 取消")
+}
+
+FinishCapture() {
+    global MyGui, CaptureTarget, CaptureTick
+    global Point1X, Point1Y, Point2X, Point2Y, RightX, RightY
+    MouseGetPos(&mx, &my)
+    if (CaptureTarget = 1) {
+        Point1X := mx
+        Point1Y := my
+    } else if (CaptureTarget = 2) {
+        Point2X := mx
+        Point2Y := my
+    } else {
+        RightX := mx
+        RightY := my
     }
+    CaptureTarget := 0
+    CaptureTick := A_TickCount
+    MyGui.Restore()
+    ShowTempToolTip("取点成功")
+}
+
+CancelCapture() {
+    global MyGui, CaptureTarget
+    CaptureTarget := 0
     ToolTip()
-    if (!cancelled) {
-        MouseGetPos(&mx, &my)
-        if (target = 1) {
-            Point1X := mx
-            Point1Y := my
-        } else if (target = 2) {
-            Point2X := mx
-            Point2Y := my
-        } else {
-            RightX := mx
-            RightY := my
-        }
-        UpdateClickPosText()
-        ShowTempToolTip("已记录 (" mx ", " my ")，点保存配置可存下来")
-    }
     MyGui.Restore()
 }
 
@@ -1244,9 +1242,10 @@ SaveConfig(*) {
     MsgBox("配置已保存到：`n" ConfigFile "`n下次打开脚本会自动恢复这些坐标。")
 }
 
-; F12 用的开关：未运行时启动上次用的开箱子模式
-; （点哪个按钮启动的就记哪个；第一次没点过，默认两种点击
-; 同时操作），运行中（无论哪种模式）则停止。
+; F12 用的开关：运行中（无论哪种模式）按 F12 停止；
+; 未运行时启动上次点过的模式（点哪个按钮启动的就记哪个）。
+; 刚打开脚本还没点过任何模式按钮时 LastClickMode 为空，
+; 按 F12 什么都不做——第一次必须先点按钮。
 ToggleClickHotkey(*) {
     global ClickMode, LastClickMode
     if (ClickMode != "") {
@@ -1256,7 +1255,7 @@ ToggleClickHotkey(*) {
         ToggleRightOnly()
     } else if (LastClickMode = "two") {
         ToggleSynth()
-    } else {
+    } else if (LastClickMode = "both") {
         ToggleBoth()
     }
 }
@@ -1765,10 +1764,29 @@ DeleteRecord(*) {
 
 ; ===== 快捷键 =====
 ; F11 = 桌面轮询 开启 / 停止（再启动从桌面 1 重新开始）
-; F12 = 开箱子 开启 / 停止（开启时用上次的模式）
+; F12 = 取点时是取点键；平时是开箱子 开启 / 停止（开启时用上次的模式）
 F11::ToggleDesktop()
-F12::ToggleClickHotkey()
+F12::F12Handler()
 SC029::ToggleQuickSwitch()
+
+; F12 的分工：取点成功后的 2 秒内按了没反应（防误触）；
+; 正在取点就取点；否则当开箱子的开关用。
+F12Handler() {
+    global CaptureTarget, CaptureTick
+    if (CaptureTick && A_TickCount - CaptureTick < 2000) {
+        return
+    }
+    if (CaptureTarget != 0) {
+        FinishCapture()
+        return
+    }
+    ToggleClickHotkey()
+}
+
+; 取点时按 Esc 取消（只在取点期间生效）
+#HotIf CaptureTarget != 0
+Esc::CancelCapture()
+#HotIf
 
 ; 快捷切换桌面的键盘：只在开关打开时生效（打开脚本时默认开），
 ; 关了 F1/F2/F3 就是正常的功能键，不会切桌面。
