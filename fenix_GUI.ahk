@@ -1981,29 +1981,31 @@ LoginAccount(*) {
     Click(LX, LY)
     LogFind("login4: account submitted, login button at " LX "," LY)
     ; 等结果：可能出二级密码键盘，也可能直接出登陆确认，两个还可能
-    ; 先后都出现。一轮等 20 秒；输完二级密码后再重新等 20 秒。
+    ; 先后都出现、顺序不定。先等第一个步骤出现（20 秒）；每处理完一个
+    ; 步骤再静等 8 秒，没有新步骤出现才算登陆完成。
     PinDone := false
+    YesDone := false
     RejectedAnchors := []
     LastPinError := ""
     Deadline := A_TickCount + 20000
-    while (A_TickCount < Deadline) {
-        YX := 0
-        YY := 0
-        if (FindPattern(YesBtnText, 0, 0, A_ScreenWidth, A_ScreenHeight, &YX, &YY)) {
-            LogFind("login4: yes button found at " YX "," YY ", clicked")
-            Click(YX, YY)
-            ShowTempToolTip("登陆完成")
-            return
-        }
+    QuietDeadline := 0
+    while (true) {
+        ; 先找二级密码键盘，键盘在的时候优先处理它、这一轮不点「是」。
+        ; 2026-11-04 日志实测教训：点 Login 后 2 秒就找到了「是」并点掉、
+        ; 流程直接结束，二级密码根本没轮到输入——确认和键盘谁先出现
+        ; 不一定，「是」点完键盘也可能才来，所以点完「是」不能收工。
+        PadSeen := false
         PX := 0
         PY := 0
         PErr := 0
         if (!PinDone && FindPinLabel(&PX, &PY, &PErr, RejectedAnchors)) {
+            PadSeen := true
             LogFind("login4: pin label found at " PX "," PY " err " PErr)
             ErrText := EnterSecondPassword(PX, PY)
             if (ErrText = "") {
                 PinDone := true
-                Deadline := A_TickCount + 20000
+                QuietDeadline := A_TickCount + 8000
+                LogFind("login4: pin entered, watch 8s for more steps")
             } else if (SubStr(ErrText, 1, 6) = "RETRY:") {
                 ; 数字没认准、一下都没点：这个锚点多半是假的，记下来跳过，
                 ; 在剩下的等待时间里继续找真键盘，不直接失败。
@@ -2015,6 +2017,24 @@ LoginAccount(*) {
                 MsgBox(ErrText, "账号登陆", "OK Icon!")
                 return
             }
+        }
+        YX := 0
+        YY := 0
+        if (!PadSeen && !YesDone && FindPattern(YesBtnText, 0, 0, A_ScreenWidth, A_ScreenHeight, &YX, &YY)) {
+            LogFind("login4: yes button found at " YX "," YY ", clicked")
+            Click(YX, YY)
+            YesDone := true
+            QuietDeadline := A_TickCount + 8000
+            LogFind("login4: yes clicked, watch 8s for pin pad")
+        }
+        if (QuietDeadline > 0) {
+            if (A_TickCount > QuietDeadline) {
+                LogFind("login4: no more steps, login complete (pin=" PinDone ", yes=" YesDone ")")
+                ShowTempToolTip("登陆完成")
+                return
+            }
+        } else if (A_TickCount > Deadline) {
+            break
         }
         Sleep(400)
     }
