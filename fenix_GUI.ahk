@@ -1989,7 +1989,11 @@ LoginAccount(*) {
     LastPinError := ""
     Deadline := A_TickCount + 20000
     QuietDeadline := 0
+    HardEnd := A_TickCount + 90000
     while (true) {
+        if (A_TickCount > HardEnd) {
+            break
+        }
         ; 先找二级密码键盘，键盘在的时候优先处理它、这一轮不点「是」。
         ; 2026-11-04 日志实测教训：点 Login 后 2 秒就找到了「是」并点掉、
         ; 流程直接结束，二级密码根本没轮到输入——确认和键盘谁先出现
@@ -2011,6 +2015,10 @@ LoginAccount(*) {
                 ; 在剩下的等待时间里继续找真键盘，不直接失败。
                 LastPinError := SubStr(ErrText, 7)
                 RejectedAnchors.Push([PX, PY])
+                Deadline := Max(Deadline, A_TickCount + 20000)
+                if (QuietDeadline > 0) {
+                    QuietDeadline := Max(QuietDeadline, A_TickCount + 8000)
+                }
                 LogFind("login4: anchor " PX "," PY " rejected (digits not validated), keep waiting")
             } else {
                 MyGui.Show()
@@ -2161,34 +2169,37 @@ EnterSecondPassword(AnchorX, AnchorY) {
 }
 
 ; 采样一个数字格：以格子中心为中点，21 宽 x 29 高逐点采样灰度
-; （公式和 FindText 一样，>120 算亮点），返回 29 个字符串（每行 21 个字符）。
-; 采样范围比模板（17x25）大一圈，是为了留出 ±2 的平移余量（见上面
-; PinTemplates 处的实测说明）。
+; （公式和 FindText 一样，>120 算亮点），返回 29 个整数（每行一个，
+; 第 (DX+10) 位对应横偏移 DX 的那个点）。采样范围比模板（17x25）
+; 大一圈，是为了留出 ±2 的平移余量（见上面 PinTemplates 处的实测
+; 说明）。用整数位运算不用字符串：2026-11-04 日志实测字符串逐字比
+; 一轮要 26 秒，位运算只要零点几秒。
 SamplePinCell(CX, CY) {
     Rows := []
     Loop 29 {
         DY := A_Index - 15
-        RowStr := ""
+        RowVal := 0
         Loop 21 {
             DX := A_Index - 11
             C := PixelGetColor(CX + DX, CY + DY)
             R := (C >> 16) & 0xFF
             G := (C >> 8) & 0xFF
             B := C & 0xFF
-            Gray := (R * 38 + G * 75 + B * 15) >> 7
-            RowStr .= (Gray > 120 ? "1" : "0")
+            if ((R * 38 + G * 75 + B * 15) >> 7 > 120) {
+                RowVal += (1 << (DX + 10))
+            }
         }
-        Rows.Push(RowStr)
+        Rows.Push(RowVal)
     }
     return Rows
 }
 
-; 一个格子离某个数字模板有多远：在 ±2 平移范围内逐点比模板（17x25），
+; 一个格子离某个数字模板有多远：在 ±2 平移范围内比模板（17x25），
 ; 取差得最少的那个平移。对应关系：模板第 R 行（0 起）在采样里是
-; 第 3+SY+R 行（1 起），从第 3+SX 列（1 起）取 17 个字符。
+; 第 3+SY+R 行（1 起）；模板第 C 列（0 起）对应采样整数的
+; 第 2+SX+C 位。逐行异或后数 1 的个数就是这一行差的点数。
 PinDistToDigit(Rows, Digit) {
-    global PinTemplates
-    Template := PinTemplates[Digit]
+    RowsT := PinTemplateRows(Digit)
     Best := 100000
     Loop 5 {
         SY := A_Index - 3
@@ -2197,12 +2208,14 @@ PinDistToDigit(Rows, Digit) {
             Dist := 0
             Loop 25 {
                 R := A_Index - 1
-                WinRow := SubStr(Rows[3 + SY + R], 3 + SX, 17)
-                TplRow := SubStr(Template, R * 17 + 1, 17)
-                Loop 17 {
-                    if (SubStr(WinRow, A_Index, 1) != SubStr(TplRow, A_Index, 1)) {
-                        Dist++
-                    }
+                W := (Rows[3 + SY + R] >> (2 + SX)) & 0x1FFFF
+                V := W ^ RowsT[R + 1]
+                while (V) {
+                    V &= V - 1
+                    Dist++
+                }
+                if (Dist >= Best) {
+                    break
                 }
             }
             if (Dist < Best) {
@@ -2211,6 +2224,30 @@ PinDistToDigit(Rows, Digit) {
         }
     }
     return Best
+}
+
+; 把某个数字的点阵模板预先转成 25 个行整数（第 C 位对应模板第 C 列），
+; 转一次就缓存起来，后面比对全走整数运算。
+PinTemplateRows(Digit) {
+    static Cache := Map()
+    global PinTemplates
+    if (Cache.Has(Digit)) {
+        return Cache[Digit]
+    }
+    Template := PinTemplates[Digit]
+    RowsT := []
+    Loop 25 {
+        R := A_Index - 1
+        V := 0
+        Loop 17 {
+            if (SubStr(Template, R * 17 + A_Index, 1) = "1") {
+                V += (1 << (A_Index - 1))
+            }
+        }
+        RowsT.Push(V)
+    }
+    Cache[Digit] := RowsT
+    return RowsT
 }
 
 ; ===== 快捷键 =====
