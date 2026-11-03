@@ -2,10 +2,11 @@
 #SingleInstance Force
 #Include FindText.ahk
 
-; 二级密码数字识别诊断（只读：不点击、不按键，只采样屏幕写结果文件）。
-; 用法：先在游戏里手动走到二级密码键盘出现的画面，让键盘留在屏幕上，
-; 再双击运行本脚本，点确定后不要动鼠标键盘，等它采样完（几秒），
-; 把同目录的 fenix_PinDiag_Result.txt 发回来。
+; 二级密码识别诊断 v2（只读：不点击、不按键，只采样屏幕写结果文件）。
+; v2 改动：分别在容错 0.02 / 0.05 / 0.1 下找「2级密码」黄字，
+; 每个找到的位置都当作锚点采样一遍 10 个数字格，写进结果文件对比。
+; 用法：游戏里手动走到二级密码键盘画面，让键盘留在屏幕上，双击运行，
+; 点确定后不要动鼠标键盘，等采样完（约十几秒），把 fenix_PinDiag_Result.txt 发回。
 CoordMode("Mouse", "Screen")
 CoordMode("Pixel", "Screen")
 
@@ -63,76 +64,88 @@ FindPattern(Text, X1, Y1, X2, Y2, &CX, &CY, E1 := "", E0 := "") {
 }
 ResultPath := A_ScriptDir "\fenix_PinDiag_Result.txt"
 
-MsgBox("先确认游戏画面上正显示着二级密码键盘（数字格子都在）。`n点确定后开始采样，几秒钟不要动鼠标键盘。", "二级密码识别诊断", "OK Iconi")
+MsgBox("先确认游戏画面上正显示着二级密码键盘（数字格子都在）。`n点确定后开始采样，十几秒不要动鼠标键盘。", "二级密码识别诊断 v2", "OK Iconi")
 Sleep(500)
 
 Out := "screen: " A_ScreenWidth "x" A_ScreenHeight "`n"
-for Err in [0.1, 0.05, 0.02] {
+Anchors := []
+for Err in [0.02, 0.05, 0.1] {
     FX := 0
     FY := 0
     if (FindPattern(PinLabelText, 0, 0, A_ScreenWidth, A_ScreenHeight, &FX, &FY, Err, Err)) {
         Out .= "PinLabel err " Err ": found at " FX "," FY "`n"
+        Dup := false
+        for A in Anchors {
+            if (Abs(A[1] - FX) <= 5 && Abs(A[2] - FY) <= 5) {
+                Dup := true
+            }
+        }
+        if (!Dup) {
+            Anchors.Push([FX, FY, Err])
+        }
     } else {
         Out .= "PinLabel err " Err ": NOT FOUND`n"
     }
 }
-AX := 0
-AY := 0
-if (!FindPattern(PinLabelText, 0, 0, A_ScreenWidth, A_ScreenHeight, &AX, &AY)) {
-    Out .= "PinLabel not found at err 0.1, stop.`n"
+if (Anchors.Length = 0) {
+    Out .= "no anchor found at any err, stop.`n"
     try FileDelete(ResultPath)
     FileAppend(Out, ResultPath)
-    MsgBox("没找到「2级密码」黄字，结果已存到 fenix_PinDiag_Result.txt，把它发回来。", "二级密码识别诊断", "OK Icon!")
+    MsgBox("任何容错下都没找到「2级密码」黄字，结果已存到 fenix_PinDiag_Result.txt，把它发回来。", "二级密码识别诊断 v2", "OK Icon!")
     ExitApp()
 }
-Out .= "anchor (err 0.1 center): " AX "," AY "`n"
 
-for CellIdx, Off in PinCellOffsets {
-    CX := AX + Off[1]
-    CY := AY + Off[2]
-    Out .= "`ncell " CellIdx " center " CX "," CY "`n"
-    BitRows := []
-    GrayText := ""
-    Loop 35 {
-        DY := A_Index - 18
-        RowBits := ""
-        GrayLine := ""
-        Loop 27 {
-            DX := A_Index - 14
-            C := PixelGetColor(CX + DX, CY + DY)
-            R := (C >> 16) & 0xFF
-            G := (C >> 8) & 0xFF
-            B := C & 0xFF
-            Gray := (R * 38 + G * 75 + B * 15) >> 7
-            RowBits .= (Gray > 120 ? "1" : "0")
-            GrayLine .= Gray " "
+for A in Anchors {
+    AX := A[1]
+    AY := A[2]
+    Out .= "`n===== anchor from err " A[3] ": " AX "," AY " =====`n"
+    for CellIdx, Off in PinCellOffsets {
+        CX := AX + Off[1]
+        CY := AY + Off[2]
+        Out .= "`ncell " CellIdx " center " CX "," CY "`n"
+        BitRows := []
+        GrayText := ""
+        Loop 35 {
+            DY := A_Index - 18
+            RowBits := ""
+            GrayLine := ""
+            Loop 27 {
+                DX := A_Index - 14
+                C := PixelGetColor(CX + DX, CY + DY)
+                R := (C >> 16) & 0xFF
+                G := (C >> 8) & 0xFF
+                B := C & 0xFF
+                Gray := (R * 38 + G * 75 + B * 15) >> 7
+                RowBits .= (Gray > 120 ? "1" : "0")
+                GrayLine .= Gray " "
+            }
+            BitRows.Push(RowBits)
+            GrayText .= GrayLine "`n"
         }
-        BitRows.Push(RowBits)
-        GrayText .= GrayLine "`n"
-    }
-    DistLine := "nominal dists:"
-    for Digit, Template in PinTemplates {
-        Dist := 0
-        Loop 25 {
-            R := A_Index - 1
-            RowStr := BitRows[6 + R]
-            Loop 17 {
-                C := A_Index - 1
-                if (SubStr(RowStr, 6 + C, 1) != SubStr(Template, R * 17 + C + 1, 1)) {
-                    Dist++
+        DistLine := "nominal dists:"
+        for Digit, Template in PinTemplates {
+            Dist := 0
+            Loop 25 {
+                R := A_Index - 1
+                RowStr := BitRows[6 + R]
+                Loop 17 {
+                    C := A_Index - 1
+                    if (SubStr(RowStr, 6 + C, 1) != SubStr(Template, R * 17 + C + 1, 1)) {
+                        Dist++
+                    }
                 }
             }
+            DistLine .= " " Digit "=" Dist
         }
-        DistLine .= " " Digit "=" Dist
+        Out .= DistLine "`n"
+        Out .= "bits (27 wide x 35 tall, threshold 120):`n"
+        for RowBits in BitRows {
+            Out .= RowBits "`n"
+        }
+        Out .= "gray (27 wide x 35 tall):`n" GrayText
     }
-    Out .= DistLine "`n"
-    Out .= "bits (27 wide x 35 tall, threshold 120):`n"
-    for RowBits in BitRows {
-        Out .= RowBits "`n"
-    }
-    Out .= "gray (27 wide x 35 tall):`n" GrayText
 }
 
 try FileDelete(ResultPath)
 FileAppend(Out, ResultPath)
-MsgBox("采样完了。把同目录的 fenix_PinDiag_Result.txt 发回来。", "二级密码识别诊断", "OK Iconi")
+MsgBox("采样完了。把同目录的 fenix_PinDiag_Result.txt 发回来。", "二级密码识别诊断 v2", "OK Iconi")
