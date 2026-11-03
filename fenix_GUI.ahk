@@ -1979,6 +1979,7 @@ LoginAccount(*) {
     SendText(Password)
     Sleep(450)
     Click(LX, LY)
+    LogFind("login4: account submitted, login button at " LX "," LY)
     ; 等结果：可能出二级密码键盘，也可能直接出登陆确认，两个还可能
     ; 先后都出现。一轮等 20 秒；输完二级密码后再重新等 20 秒。
     PinDone := false
@@ -1987,13 +1988,16 @@ LoginAccount(*) {
         YX := 0
         YY := 0
         if (FindPattern(YesBtnText, 0, 0, A_ScreenWidth, A_ScreenHeight, &YX, &YY)) {
+            LogFind("login4: yes button found at " YX "," YY ", clicked")
             Click(YX, YY)
             ShowTempToolTip("登陆完成")
             return
         }
         PX := 0
         PY := 0
-        if (!PinDone && FindPinLabel(&PX, &PY)) {
+        PErr := 0
+        if (!PinDone && FindPinLabel(&PX, &PY, &PErr)) {
+            LogFind("login4: pin label found at " PX "," PY " err " PErr)
             ErrText := EnterSecondPassword(PX, PY)
             if (ErrText != "") {
                 MyGui.Show()
@@ -2005,6 +2009,7 @@ LoginAccount(*) {
         }
         Sleep(400)
     }
+    LogFind("login4: wait timeout 20s, PinDone=" PinDone)
     MyGui.Show()
     MsgBox("等了 20 秒，既没见到二级密码键盘，也没见到登陆确认。可能卡在别的画面了，看一下游戏画面。", "账号登陆", "OK Icon!")
 }
@@ -2013,10 +2018,12 @@ LoginAccount(*) {
 ; 会先命中屏幕上另一处长得像的黄字（假位置，误差 0.02~0.05），真黄字
 ; 误差 ≤0.02。FindText 返回扫描顺序里第一个达标的位置、不是最像的那个，
 ; 所以从紧到松逐级试，命中即停。
-FindPinLabel(&PX, &PY) {
+FindPinLabel(&PX, &PY, &UsedErr) {
     global PinLabelText
+    UsedErr := 0
     for Err in [0.02, 0.03, 0.05] {
         if (FindPattern(PinLabelText, 0, 0, A_ScreenWidth, A_ScreenHeight, &PX, &PY, Err, Err)) {
+            UsedErr := Err
             return true
         }
     }
@@ -2050,12 +2057,15 @@ EnterSecondPassword(AnchorX, AnchorY) {
                 Second := Dist
             }
         }
+        LogFind("login4: digit " Want " best cell " BestIdx " dist " Best ", second dist " Second)
         ; 距离够小、和第二名拉得开，才敢点这一格
         if (Best > 12 || (Second - Best) < 5) {
+            LogFind("login4: digit " Want " REJECTED by gate")
             return "二级密码的数字 " Want " 没把握（最像的格子差 " Best " 个点，第二名差 " Second " 个点）。已停下，一下都没点，先看一下游戏画面。"
         }
         HitIdxs.Push(BestIdx)
     }
+    LogFind("login4: all digits located, clicking pin box and cells")
     Click(AnchorX + PinBoxOffset[1], AnchorY + PinBoxOffset[2])
     Sleep(450)
     Entered := ""
@@ -2064,6 +2074,7 @@ EnterSecondPassword(AnchorX, AnchorY) {
         Pos++
         Click(AnchorX + PinCellOffsets[HitIdx][1], AnchorY + PinCellOffsets[HitIdx][2])
         Entered .= SubStr(SecondPassword, Pos, 1)
+        LogFind("login4: clicked cell " HitIdx " for digit " SubStr(SecondPassword, Pos, 1))
         Sleep(400)
     }
     Deadline := A_TickCount + 4000
@@ -2071,12 +2082,14 @@ EnterSecondPassword(AnchorX, AnchorY) {
         OX := 0
         OY := 0
         if (FindPattern(PinOKText, 0, 0, A_ScreenWidth, A_ScreenHeight, &OX, &OY)) {
+            LogFind("login4: pin ok lit at " OX "," OY ", clicked")
             Click(OX, OY)
             Sleep(500)
             return ""
         }
         Sleep(300)
     }
+    LogFind("login4: pin ok NOT lit within 4s after entering digits")
     return "输完二级密码后，「输入」按钮没变亮。已停下，游戏里已经输了「" Entered "」，先检查一下游戏画面。"
 }
 
