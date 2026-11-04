@@ -67,6 +67,18 @@ DetectHiddenWindows(true)
 ;        只做两点点击，右键点击不启动
 ;      三个按钮互斥：点另一个会先停掉当前模式再启动新模式；
 ;      再点一次正在运行的按钮就是停止。
+;   4. 账号登陆（没有快捷键，只能点按钮）：
+;      下拉框里是 accounts 文件夹里已保存的账号（一个账号一个 .txt，
+;      文件名就是账号名，第 1 行是登陆密码；如果要输二次密码，
+;      手动在第 2 行写二次密码，只能是数字）。右边三个按钮：
+;      保存（账号名 + 下面密码框里的密码，存成 accounts\账号名.txt；
+;      已有账号的第 2 行以后的内容会保留）、登陆、删除。
+;      点登陆：窗口最小化 -> 激活 Atlantica Online Fenix 客户端 ->
+;      FindText 找 Login 按钮 -> 点账号框输账号 -> Tab -> 输密码 ->
+;      点 Login -> 等待：出现二次密码界面就点密码框、用 FindText
+;      逐个识别数字键、按二次密码依次点数字、等“输入”变亮后点它；
+;      出现“登陆确认”对话框就用 FindText 找“是”并点击。
+;      登陆过程中按 Esc 取消。
 ; 使用：双击运行本脚本，点按钮或按快捷键即可。
 ;       F11 开关桌面轮询，F12 开关开箱子（兼取点键）。
 ;       桌面轮询有一个「启停键 F11」按钮，右边有个
@@ -185,6 +197,49 @@ UnknownText := "|<Unknown>*82$46.zzzzzzzvzzzzzzzjzzzzzzzk000000yTzzzzztdzTzzyzqj
 ProjectorText := "|<projector>*79$46.s000000TDzzzzzwwzzzzzzurzzzzzzfTzVzzzyhzw3zzzurzm7zzzfTy0Nzzyhzt3y3zurzk7sLzfTzEQBTyhzx7koTurzm711zfTz8SOTyhzUXs7zurw0AgTzfTU00kTyhy03k/Turl07k5zfTY030DyhyG00Svurxj007zfTszk7zyhzkzkTzurzUzszzfTyET7zyhztkATzurznsDzzfTzbwTzyhzzbzzzurzzbzxzfTzzbzzyhzzznzzurzzzzzzfzzzzzzzj000000D"
 ProjectorTextOld := "|<projector>*68$45.Tzzzzzzv0000003Hzzzzzz+TzzzzzxLzwLzzzezz1zzzxLzk7zzzezy0zzzxLzU6T3zezw0s1zxLzU3EHzezw0sERxLzo701zezy0s0DxLzm764rezk0k1axLw084Srez001UCxLk0601zey80y0jxLl00k1jez8006NxLt0007jezUz07zxLz3z0zzezs3y7zxLzU7lzrezwM6DyxLzVs7zzezz7szzxLzwDzzzezzsTzbxLzzszbzezzzkXzxLzzzzzzfTzzzzzzQ000000vzzzzzzzSnk0008I"
 
+; ===== 功能 4：账号登陆 =====
+; accounts 文件夹里一个账号一个 .txt：文件名 = 账号名，第 1 行 = 登陆密码，
+; 第 2 行（可选，手动添加）= 二次密码（数字）。
+AccountsDir := A_ScriptDir "\accounts"
+LoginRunning := false     ; 登陆流程是否在进行（Esc / 其他功能启动 / 全部停止 会把它置 false，流程在下一个等待点退出）
+; 下面的图案都是用 FindText 的格式、从你发的 1.jpg~4.jpg 裁出来的（灰度阈值法，1 = 暗点）。
+; 游戏里的实际显示和截图不一样（缩放、画质）导致认不出来时，用 FindText 自带的截图工具
+; 重新截一张，把生成的字符串替换到对应变量里即可；每次找图的结果都会写进 fenix_Find_Log.txt。
+; Login 按钮上的 "Login" 字样（1.jpg）
+LoginBtnText := "|<Login>*150$39.zzzzzzzzzzzzzzzzzzzzTzzzTztzzzlzzDzzzzztz7UTzzDUM2M7twlCH4zDb9mNrtwtCHCzDb9mNrtwnUHCz0svnNrzzzAzzzzzyDzzzzzzzzzzzzzzzzzzzzzw"
+; 二次密码界面的黄色 "2级密码" 字样（2.jpg）
+SecLabelText := "|<Label>*130$46.zzzzzzzzzzzzzzzzzjzxzs7sSUM08TTSrRiyvRzuprxThrzcqxPRrTxvMpOl0zDRus+LvvsHiTxTjTzJzTo2w3XjRr7vzthRrRTjzxik1ztzzzzzzzzzzzzzzzy"
+; 二次密码界面里变亮的 "输入" 按钮字样（3.jpg）
+SecEnterText := "|<Enter>*160$31.zzzzzzzzzzzzzzzznbszztVzDzk6TnzwU7tzwDzsTy0NwDzk0y7zs0SNzk0DAzy07DDz0nDnzUFDwzzzzzzzzzzzzzzzzU"
+; 登陆确认对话框里的 "是"（4.jpg）
+ConfirmYesText := "|<Yes>*150$17.zzzzzzzzzk7zjjz0Tyyzw1zzzz01zxzzMDyrzujzi0zzzzzzzzzU"
+; 数字键盘上每个数字（2.jpg，11x16，只裁数字本身加两三个像素的边，不含按键的亮边框——
+; 边框在真实屏幕上比截图亮，裁进去会整个对不上；数字 2 已和真实屏幕截图逐点核对过）。
+; 数字随机排列，所以每个数字单独认
+DigitText := Map(
+    "0", "|<D0>*160$11.zzzzzz1wttnnbbDCSQwttnnbbDUzzs",
+    "1", "|<D1>*160$11.zzzzzztz3zbzDyTwztznzbzDyTwzzs",
+    "2", "|<D2>*160$11.zzzzzz1wttnzbzDwznzDwznzbz0Tzs",
+    "3", "|<D3>*160$11.zzzzzz1wttnzbzDUzwztznnbbDUzzs",
+    "4", "|<D4>*160$11.zzzzzzszVz3wbtDaTAwttnk3zDyTzs",
+    "5", "|<D5>*160$11.zzzzzy0wztznzUTCTwztznnbbDUzzs",
+    "6", "|<D6>*160$11.zzzzzz1wttnnzbz0yQwttnnbbDUzzs",
+    "7", "|<D7>*160$11.zzzzzy0ztznzDyTtznzDyTwztznzzs",
+    "8", "|<D8>*160$11.zzzzzz1wttnnbbDUyQwttnnbbDUzzs",
+    "9", "|<D9>*160$11.zzzzzz1wttnnbbDCT0ztznnbbDUzzs"
+)
+; 数字键之间长得很像（比如 8 和 6 只差几个点），所以容错要很小：
+; 1 的点（暗的背景）只允许错约 1 个点，0 的点（数字笔画）允许错 4%。
+DigitErr1 := 0.01
+DigitErr0 := 0.04
+; 以 FindText 找到的图案中心为基准的偏移（按截图量出来的）
+LoginAccountDX := 0       ; Login 按钮 -> 账号输入框
+LoginAccountDY := -139
+SecBoxDX := -68           ; "2级密码" 字样 -> 二次密码输入框
+SecBoxDY := 0
+SecEnterDX := -72         ; "2级密码" 字样 -> "输入" 按钮（找不到变亮的字样时按这个偏移硬点）
+SecEnterDY := 84
+
 ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键（抽奖），"two" = 仅两点点击（合成）
 LastClickMode := "" ; F12 启动时用上次点过的开箱子模式；刚打开脚本还没点过模式按钮时为空，F12 按了没反应（第一次必须先点按钮）。只记本次运行，不存配置，关掉脚本就没了
 CaptureTarget := 0  ; 0 = 没在取点；1 = 自动放入，2 = 开始精炼，3 = 箱子位置（点了取点按钮后，等按 F12 取点）
@@ -247,16 +302,17 @@ HelpText := "快捷键说明"
     . "`nF1 / F2 / F3：切到桌面 1 / 2 / 3（快捷切换开启时才管用）"
     . "`nF4：回放录制，点按回放 1 次，按住约 2 秒弹出对话框填重复次数（默认 0 = 无限制，填 3 就回放 3 次），回放中再按 F4 立刻停（快捷切换开启时才管用）"
     . "`nF5：开始 / 停止录制，回放中按 F5 也立刻停（快捷切换开启时才管用）"
-    . "`nEsc：取点时取消"
+    . "`nEsc：取点时取消；账号登陆进行中按 Esc 取消登陆"
+    . "`n功能 4「账号登陆」没有快捷键：下拉框选账号（或输新账号名）、密码框填密码、点保存，就会在 accounts 文件夹生成 账号名.txt（第 1 行是密码）。需要二次密码的账号，手动打开这个 txt，在第 2 行写二次密码（数字）。点登陆会自动完成输账号密码、二次密码、登陆确认"
 ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
     if (HelpShown) {
         txtHelp.Visible := false
-        MyGui.Show("w380 h436")
+        MyGui.Show("w380 h566")
         HelpShown := false
     } else {
         txtHelp.Visible := true
-        MyGui.Show("w700 h436")
+        MyGui.Show("w700 h566")
         HelpShown := true
     }
 }
@@ -322,17 +378,33 @@ btnDeleteRecord := MyGui.Add("Button", "x310 y338 w55 h30", "删除")
 btnDeleteRecord.OnEvent("Click", MinimizeAndRun(DeleteRecord))
 MyGui.Add("Text", "x10 y378 w360 h2 +0x1000")
 
+; ---- 4. 账号登陆 ----
+; 下拉框只显示账号名（accounts 文件夹里的 .txt 文件名），不显示密码。
+; 保存时账号名从下拉框里输，密码在下面的密码框里输。
+MyGui.Add("Text", "x10 y388 w360", "4. 账号登陆（无快捷键）")
+cmbAccounts := MyGui.Add("ComboBox", "x10 y413 w170", [])
+btnSaveAccount := MyGui.Add("Button", "x190 y413 w55 h30", "保存")
+btnSaveAccount.OnEvent("Click", MinimizeAndRun(SaveAccount))
+btnLogin := MyGui.Add("Button", "x250 y413 w55 h30", "登陆")
+btnLogin.OnEvent("Click", MinimizeAndRun(LoginAccount))
+btnDeleteAccount := MyGui.Add("Button", "x310 y413 w55 h30", "删除")
+btnDeleteAccount.OnEvent("Click", MinimizeAndRun(DeleteAccount))
+edtAccPwd := MyGui.Add("Edit", "x10 y449 w170 +Password")
+MyGui.Add("Text", "x190 y453 w180", "← 密码（只在保存时填）")
+txtAccStatus := MyGui.Add("Text", "x10 y484 w360", "状态：未登陆")
+MyGui.Add("Text", "x10 y508 w360 h2 +0x1000")
+
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y388 w86 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y518 w86 h30", "全部停止")
 btnStopAll.OnEvent("Click", MinimizeAndRun(StopAll))
-btnSaveConfig := MyGui.Add("Button", "x101 y388 w86 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x101 y518 w86 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", MinimizeAndRun(SaveConfig))
-btnHelp := MyGui.Add("Button", "x192 y388 w86 h30", "使用说明")
+btnHelp := MyGui.Add("Button", "x192 y518 w86 h30", "使用说明")
 btnHelp.OnEvent("Click", ToggleHelp)
-btnExit := MyGui.Add("Button", "x283 y388 w86 h30", "退出")
+btnExit := MyGui.Add("Button", "x283 y518 w86 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 ; 使用说明面板（窗口右侧，平时藏着，点「使用说明」才展开显示）。
-txtHelp := MyGui.Add("Edit", "x390 y10 w300 h426 +ReadOnly +Multi +VScroll", HelpText)
+txtHelp := MyGui.Add("Edit", "x390 y10 w300 h546 +ReadOnly +Multi +VScroll", HelpText)
 txtHelp.Visible := false
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -362,8 +434,9 @@ if (DesktopCount < 1) {
 }
 
 RefreshRecordList()
+RefreshAccountList()
 
-MyGui.Show("w380 h436")
+MyGui.Show("w380 h566")
 
 ; 打开脚本时默认开启功能 3（快捷切换）：和点「开始」按钮走
 ; 同一条路，开启后 2 秒还会把三个桌面的游戏窗口居中。
@@ -1137,6 +1210,7 @@ StopClickLoops() {
     SetTimer(StepRight, 0)
     ClickMode := ""
     UpdateClickButtons()
+    StopLogin()   ; 其他功能启动、全部停止时，顺便终止进行中的账号登陆
 }
 
 ToggleBoth(*) {
@@ -1220,6 +1294,7 @@ StepRight() {
 
 ; ===== 全部停止 =====
 StopAll(*) {
+    StopLogin()
     StopDesktopPolling()
     StopClickLoops()
     StopQuickSwitch()
@@ -1762,6 +1837,404 @@ DeleteRecord(*) {
     ShowTempToolTip("已删除「" Name "」")
 }
 
+; ===== 功能 4：账号登陆 =====
+; 刷新下拉框里的账号列表（读 accounts 文件夹里的 .txt 文件名，不读内容）。
+RefreshAccountList() {
+    global cmbAccounts, AccountsDir
+    cmbAccounts.Delete()
+    if (!DirExist(AccountsDir)) {
+        return
+    }
+    Loop Files, AccountsDir "\*.txt" {
+        cmbAccounts.Add([SubStr(A_LoopFileName, 1, -4)])
+    }
+}
+
+; 读账号文件：返回 [登陆密码, 二次密码]（没有第 2 行时二次密码是空串）。
+; 文件不存在或读失败返回空数组。
+ReadAccountFile(Name) {
+    global AccountsDir
+    Path := AccountsDir "\" Name ".txt"
+    if (!FileExist(Path)) {
+        return []
+    }
+    try {
+        Text := FileRead(Path, "UTF-8")
+    } catch {
+        return []
+    }
+    Lines := StrSplit(Text, "`n", "`r")
+    Pwd := Lines.Length >= 1 ? Trim(Lines[1]) : ""
+    Pwd2 := Lines.Length >= 2 ? Trim(Lines[2]) : ""
+    return [Pwd, Pwd2]
+}
+
+; 保存：账号名取下拉框文字，密码取密码框。
+; 已有账号：密码框留空 = 不改（什么都不做）；填了 = 只改第 1 行，第 2 行以后（二次密码）原样保留。
+SaveAccount(*) {
+    global AccountsDir, cmbAccounts, edtAccPwd, txtAccStatus
+    Name := Trim(cmbAccounts.Text)
+    Pwd := edtAccPwd.Value
+    if (Name = "") {
+        MsgBox("先在下拉框里输入账号名，再点保存。", "保存账号", "OK Icon!")
+        return
+    }
+    if (RegExMatch(Name, '[\\/:*?"<>|]')) {
+        MsgBox("账号名里不能有 \ / : * ? `" < > | 这些字符。", "保存账号", "OK Icon!")
+        return
+    }
+    Path := AccountsDir "\" Name ".txt"
+    Exists := FileExist(Path)
+    if (Pwd = "") {
+        if (!Exists) {
+            MsgBox("新账号要在下面的密码框里填密码，再点保存。", "保存账号", "OK Icon!")
+        } else {
+            MsgBox("密码框是空的，「" Name "」的密码保持不变。`n想改密码就在密码框里填新密码再点保存。", "保存账号", "OK Icon!")
+        }
+        return
+    }
+    Rest := ""
+    if (Exists) {
+        Result := MsgBox("已经有账号「" Name "」了，要用新密码覆盖吗？`n（文件第 2 行以后的内容，比如二次密码，会保留）", "保存账号", "YesNo Icon?")
+        if (Result = "No") {
+            return
+        }
+        try {
+            Lines := StrSplit(FileRead(Path, "UTF-8"), "`n", "`r")
+            Loop Lines.Length - 1 {
+                Rest .= "`n" Lines[A_Index + 1]
+            }
+        } catch {
+            Rest := ""
+        }
+    }
+    try {
+        DirCreate(AccountsDir)
+        if (Exists) {
+            FileDelete(Path)
+        }
+        FileAppend(Pwd . Rest, Path, "UTF-8-RAW")
+    } catch as Err {
+        MsgBox("保存失败：" Err.Message, "保存账号", "OK Icon!")
+        return
+    }
+    edtAccPwd.Value := ""
+    RefreshAccountList()
+    cmbAccounts.Text := Name
+    txtAccStatus.Text := "状态：已保存账号「" Name "」"
+}
+
+DeleteAccount(*) {
+    global AccountsDir, cmbAccounts, txtAccStatus
+    Name := Trim(cmbAccounts.Text)
+    if (Name = "") {
+        MsgBox("先在下拉框里选一个账号。", "删除账号", "OK Icon!")
+        return
+    }
+    Path := AccountsDir "\" Name ".txt"
+    if (!FileExist(Path)) {
+        MsgBox("没有叫「" Name "」的账号。", "删除账号", "OK Icon!")
+        return
+    }
+    Result := MsgBox("确定要删除账号「" Name "」吗？`n（密码和二次密码都会一起删掉）", "删除账号", "YesNo Icon?")
+    if (Result = "No") {
+        return
+    }
+    try {
+        FileDelete(Path)
+    } catch as Err {
+        MsgBox("删除失败：" Err.Message, "删除账号", "OK Icon!")
+        return
+    }
+    cmbAccounts.Text := ""
+    RefreshAccountList()
+    txtAccStatus.Text := "状态：已删除账号「" Name "」"
+    ShowTempToolTip("已删除账号「" Name "」")
+}
+
+; 终止进行中的登陆（Esc、全部停止、其他功能启动都会调用）。
+; 登陆流程在下一个等待点发现标志变了就退出。
+StopLogin(*) {
+    global LoginRunning, txtAccStatus
+    if (!LoginRunning) {
+        return
+    }
+    LoginRunning := false
+    ToolTip()
+    txtAccStatus.Text := "状态：登陆已取消"
+}
+
+; 点“登陆”：读账号文件，停掉其他功能，跑登陆流程，出错弹框说明原因。
+LoginAccount(*) {
+    global LoginRunning, cmbAccounts, txtAccStatus
+    Name := Trim(cmbAccounts.Text)
+    if (Name = "") {
+        MsgBox("先在下拉框里选一个账号。", "账号登陆", "OK Icon!")
+        return
+    }
+    Info := ReadAccountFile(Name)
+    if (Info.Length = 0) {
+        MsgBox("没有叫「" Name "」的账号文件，先保存账号。", "账号登陆", "OK Icon!")
+        return
+    }
+    if (Info[1] = "") {
+        MsgBox("accounts\" Name ".txt 第 1 行（密码）是空的。", "账号登陆", "OK Icon!")
+        return
+    }
+    ; 功能互斥：启动登陆前先停掉其他所有功能（和其他功能一样的规矩）。
+    StopDesktopPolling()
+    StopClickLoops()
+    StopQuickSwitch()
+    LoginRunning := true
+    Failed := ""
+    try {
+        DoLogin(Name, Info[1], Info[2])
+    } catch as Err {
+        if (Err.Message != "LoginAborted") {
+            Failed := Err.Message
+        }
+    }
+    Aborted := !LoginRunning
+    LoginRunning := false
+    ToolTip()
+    if (Failed != "") {
+        LogFind("login FAILED: " Failed)
+        txtAccStatus.Text := "状态：登陆失败"
+        MsgBox(Failed, "账号登陆", "OK Icon!")
+    } else if (Aborted) {
+        txtAccStatus.Text := "状态：登陆已取消"
+    }
+}
+
+; 可被取消的等待：每 50ms 看一次标志，被取消就抛 LoginAborted 退出整个流程。
+LoginSleep(Ms) {
+    global LoginRunning
+    End := A_TickCount + Ms
+    while (A_TickCount < End) {
+        if (!LoginRunning) {
+            throw Error("LoginAborted")
+        }
+        Sleep(Min(50, End - A_TickCount))
+    }
+    if (!LoginRunning) {
+        throw Error("LoginAborted")
+    }
+}
+
+LoginStatus(Msg) {
+    global txtAccStatus
+    txtAccStatus.Text := "状态：" Msg
+    ToolTip("账号登陆：" Msg "（Esc 取消）")
+}
+
+; 点一个位置：先移过去停一下再点，间隔给客户端反应时间。
+LoginClick(X, Y) {
+    MouseMove(X, Y, 0)
+    LoginSleep(150)
+    Click()
+    LoginSleep(200)
+}
+
+; 清空输入框里已有的内容（点进框后，光标到末尾再连按退格）。
+LoginClearField() {
+    SendEvent("{End}{BackSpace 24}")
+    LoginSleep(150)
+}
+
+; 逐个字符敲进去（{Text} 模式：特殊字符按字面输入；每个键之间有间隔）。
+LoginType(Str) {
+    Loop Parse, Str {
+        SendEvent("{Text}" A_LoopField)
+        LoginSleep(60)
+    }
+}
+
+; 游戏窗口的矩形（激活窗口时记下的）；没记到就用整个屏幕。
+LoginRegion(&X1, &Y1, &X2, &Y2) {
+    global GameWinX, GameWinY, GameWinW, GameWinH
+    if (GameWinW > 0 && GameWinH > 0) {
+        X1 := GameWinX
+        Y1 := GameWinY
+        X2 := GameWinX + GameWinW
+        Y2 := GameWinY + GameWinH
+    } else {
+        X1 := 0
+        Y1 := 0
+        X2 := A_ScreenWidth
+        Y2 := A_ScreenHeight
+    }
+}
+
+; 在游戏窗口里找图案，最多等 TimeoutMs 毫秒（每 0.25 秒找一次），找到返回 true。
+LoginFindWait(Text, &CX, &CY, TimeoutMs, E1 := "", E0 := "") {
+    Start := A_TickCount
+    CX := 0
+    CY := 0
+    Loop {
+        LoginSleep(1)
+        LoginRegion(&X1, &Y1, &X2, &Y2)
+        if (FindPattern(Text, X1, Y1, X2, Y2, &CX, &CY, E1, E0)) {
+            return true
+        }
+        if (A_TickCount - Start >= TimeoutMs) {
+            return false
+        }
+        LoginSleep(250)
+    }
+}
+
+; 登陆主流程。出错抛 Error（消息就是弹给用户看的原因）。
+DoLogin(Name, Pwd, Pwd2) {
+    LogFind("login: start account=" Name " hasSecondPwd=" (Pwd2 != "" ? "yes" : "no"))
+    SetKeyDelay(40, 30)
+
+    ; 1. 激活客户端窗口（先按标题 + DLL 找当前桌面的那个，不行再按标题找任意一个）
+    LoginStatus("激活客户端…")
+    if (!ActivateGameByTitle()) {
+        hWnd := WinExist(GameTitle)
+        if (!hWnd) {
+            throw Error("没找到标题是「" GameTitle "」的客户端窗口，请先打开游戏客户端。")
+        }
+        WinActivate("ahk_id " hWnd)
+        SaveGameWinRect(hWnd)
+    }
+    LoginSleep(800)
+
+    ; 2. 找 Login 按钮（界面是否到了登陆画面）
+    LoginStatus("查找登陆界面…")
+    if (!LoginFindWait(LoginBtnText, &BX, &BY, 8000)) {
+        throw Error("没找到登陆界面（没认出 Login 按钮）。`n请确认客户端停在账号登陆画面，窗口没被挡住；"
+            . "仍然不行就重新用 FindText 截一张 Login 字样，替换脚本里的 LoginBtnText。")
+    }
+    LogFind("login: Login button at (" BX "," BY ")")
+
+    ; 3. 输账号、Tab、输密码、点 Login（每步之间留间隔，防止客户端反应不过来）
+    LoginStatus("输入账号和密码…")
+    LoginClick(BX + LoginAccountDX, BY + LoginAccountDY)
+    LoginSleep(400)
+    LoginClearField()
+    LoginType(Name)
+    LoginSleep(500)
+    SendEvent("{Tab}")
+    LoginSleep(500)
+    LoginClearField()
+    LoginType(Pwd)
+    LoginSleep(800)
+    LoginStatus("点击 Login…")
+    LoginClick(BX, BY)
+
+    ; 4. 等后续界面：二次密码界面 / 登陆确认对话框（也可能都没有）
+    LoginStatus("等待登陆结果…")
+    Start := A_TickCount
+    Limit := 20000
+    SecDone := false
+    Loop {
+        LoginSleep(1)
+        LoginRegion(&X1, &Y1, &X2, &Y2)
+        if (FindPattern(ConfirmYesText, X1, Y1, X2, Y2, &YX, &YY)) {
+            LogFind("login: confirm 'yes' at (" YX "," YY ")")
+            LoginStatus("确认登陆…")
+            LoginSleep(300)
+            LoginClick(YX, YY)
+            LoginStatus("登陆完成")
+            ToolTip()
+            ShowTempToolTip("登陆完成")
+            return
+        }
+        if (!SecDone && FindPattern(SecLabelText, X1, Y1, X2, Y2, &LX, &LY)) {
+            LogFind("login: second password screen, label at (" LX "," LY ")")
+            LoginSecondPassword(Name, Pwd2, LX, LY)
+            SecDone := true
+            Start := A_TickCount   ; 二次密码输完后，再等 10 秒让登陆确认出现
+            Limit := 10000
+            continue
+        }
+        if (A_TickCount - Start >= Limit) {
+            break
+        }
+        LoginSleep(300)
+    }
+    if (SecDone) {
+        LoginStatus("二次密码已输入，没出现登陆确认")
+        LogFind("login: second password done but no confirm dialog")
+        ToolTip()
+        ShowTempToolTip("二次密码已输入，但没等到登陆确认对话框")
+    } else {
+        LoginStatus("没出现二次密码或登陆确认")
+        LogFind("login: no second password / confirm dialog within time")
+        ToolTip()
+        ShowTempToolTip("没等到二次密码或登陆确认界面（可能已直接进入，或账号密码有误）")
+    }
+}
+
+; 二次密码：点密码框 -> 逐个识别数字键 -> 按二次密码依次点数字 -> 等“输入”变亮 -> 点它。
+; LX/LY 是“2级密码”字样的中心，键盘和输入按钮的位置都按它来定。
+LoginSecondPassword(Name, Pwd2, LX, LY) {
+    global DigitText, DigitErr1, DigitErr0, SecBoxDX, SecBoxDY, SecEnterDX, SecEnterDY, SecEnterText
+    if (Pwd2 = "") {
+        throw Error("出现了二次密码界面，但 accounts\" Name ".txt 里没有二次密码。`n"
+            . "请用记事本打开这个文件，在第 2 行写上二次密码（数字），保存后再登陆。")
+    }
+    if (!RegExMatch(Pwd2, "^\d+$")) {
+        throw Error("accounts\" Name ".txt 第 2 行的二次密码只能是数字。")
+    }
+    LoginStatus("输入二次密码…")
+    LoginSleep(600)
+    ; 先点右边的长方形密码框
+    LoginClick(LX + SecBoxDX, LY + SecBoxDY)
+    LoginSleep(400)
+
+    ; 逐个识别用得到的数字键（数字随机排列，每个数字用自己的图案找；
+    ; 先全找到位置再点，点之前鼠标不在键盘上，不会因为悬停变色认不出）。
+    Need := Map()
+    Loop Parse, Pwd2 {
+        Need[A_LoopField] := true
+    }
+    Pos := Map()
+    Loop 10 {
+        for D, _ in Need {
+            if (Pos.Has(D)) {
+                continue
+            }
+            if (FindPattern(DigitText[D], LX - 260, LY - 60, LX - 110, LY + 120, &CX, &CY, DigitErr1, DigitErr0)) {
+                Pos[D] := [CX, CY]
+                LogFind("login: digit " D " at (" CX "," CY ")")
+            }
+        }
+        if (Pos.Count = Need.Count) {
+            break
+        }
+        LoginSleep(300)
+    }
+    if (Pos.Count < Need.Count) {
+        Missing := ""
+        for D, _ in Need {
+            if (!Pos.Has(D)) {
+                Missing .= D " "
+            }
+        }
+        LogFind("login: digits NOT found: " Missing)
+        throw Error("数字键盘上没认出这些数字：" Missing "`n"
+            . "可能是游戏里的显示和截图不一样；请用 FindText 重新截这几个数字键，替换脚本里 DigitText 里对应的图案。")
+    }
+
+    ; 按二次密码的顺序依次点数字
+    Loop Parse, Pwd2 {
+        LoginClick(Pos[A_LoopField][1], Pos[A_LoopField][2])
+        LoginSleep(250)
+    }
+
+    ; 输完后“输入”按钮会变亮，等它亮了再点；一直没亮就按偏移硬点一下。
+    LoginStatus("点击“输入”…")
+    if (LoginFindWait(SecEnterText, &EX, &EY, 4000)) {
+        LogFind("login: bright 'enter' at (" EX "," EY ")")
+        LoginClick(EX, EY)
+    } else {
+        LogFind("login: bright 'enter' NOT found, click by offset")
+        LoginClick(LX + SecEnterDX, LY + SecEnterDY)
+    }
+}
+
 ; ===== 快捷键 =====
 ; F11 = 桌面轮询 开启 / 停止（再启动从桌面 1 重新开始）
 ; F12 = 取点时是取点键；平时是开箱子 开启 / 停止（开启时用上次的模式）
@@ -1786,6 +2259,11 @@ F12Handler() {
 ; 取点时按 Esc 取消（只在取点期间生效）
 #HotIf CaptureTarget != 0
 Esc::CancelCapture()
+#HotIf
+
+; 账号登陆进行中按 Esc 取消登陆（只在登陆期间生效）
+#HotIf LoginRunning
+Esc::StopLogin()
 #HotIf
 
 ; 快捷切换桌面的键盘：只在开关打开时生效（打开脚本时默认开），
