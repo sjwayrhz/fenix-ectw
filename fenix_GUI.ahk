@@ -244,6 +244,13 @@ PinEnterOff := [159, 107] ; 第 1 格中心 -> “输入”按钮中心
 PinMaxDist := 5           ; 一个格子离它认出的数字模板最多差几个点
 PinMinMargin := 5         ; 密码用到的数字和第二像的数字至少拉开几个点
 PinHuntNote := ""         ; 最近一次找键盘的小结（候选数等），登陆失败时写进日志备查
+; 整屏截图缓冲（CapturePinRegion 填）：找键盘时先截一张，本轮采样全从内存读，
+; 不再逐点 PixelGetColor——她机器上逐点取色一个格子要几百毫秒，一轮验证要几秒（实测教训）。
+PinCapX := 0
+PinCapY := 0
+PinCapW := 0
+PinCapH := 0
+PinCapBuf := ""
 ; 数字验证模板：从她逐个截的数字图按灰度 >120 二值化、裁到字形边界生成（2026-11-04）。
 ; 每行一个整数：第 c 位（1<<c）对应字形第 c 列（左到右），1 = 亮点。
 ; 已和她机器的实屏采样逐格验过：10 个格子全是距离 0 命中。
@@ -2276,9 +2283,15 @@ HuntPinKeypad(Need, &Cells, &C1X, &C1Y) {
     }
     LogFind("login: pin hunt candidates=" Cands.Length)
     PinHuntNote := "候选 " Cands.Length " 个"
+    CapturePinRegion()
+    HuntStart := A_TickCount
+    BestDiag := ""
+    BestWhy := ""
+    BestCand := ""
+    BestK := 0
     Tried := []
     for _, C in Cands {
-        if (Tried.Length >= 60) {
+        if (Tried.Length >= 60 || A_TickCount - HuntStart > 15000) {
             break
         }
         Dup := false
@@ -2292,29 +2305,66 @@ HuntPinKeypad(Need, &Cells, &C1X, &C1Y) {
             continue
         }
         Tried.Push([C[2], C[3]])
-        FirstCand := (Tried.Length = 1)
         Loop 10 {
+            if (A_TickCount - HuntStart > 15000) {
+                break
+            }
             K := A_Index - 1
             OX := C[2] - PinCellOff[K + 1][1]
             OY := C[3] - PinCellOff[K + 1][2]
             if (OX < 10 || OY < 14 || OX + 92 > A_ScreenWidth || OY + 122 > A_ScreenHeight) {
                 continue
             }
-            if (ValidatePinGrid(OX, OY, K, Need, &Cells, &C1X, &C1Y, &Why)) {
+            Diag := {Passed: 0, Detail: "", Rows: ["", "", "", "", "", "", "", "", "", ""], OX: OX, OY: OY}
+            if (ValidatePinGrid(OX, OY, K, Need, &Cells, &C1X, &C1Y, &Why, Diag)) {
                 LogFind("login: pin keypad OK, cand " C[1] " at (" C[2] "," C[3] ") as cell " (K + 1) ", origin=(" OX "," OY ")")
                 return true
             }
-            if (FirstCand) {
-                LogFind("login: cand " C[1] " as cell " (K + 1) " rejected: " Why)
+            if (BestDiag = "" || Diag.Passed > BestDiag.Passed) {
+                BestDiag := Diag
+                BestWhy := Why
+                BestCand := C
+                BestK := K
             }
+        }
+    }
+    if (BestDiag != "") {
+        LogFind("login: pin hunt best: cand " BestCand[1] " as cell " (BestK + 1) " passed " BestDiag.Passed "/10 (" BestWhy ") " BestDiag.Detail)
+        PinHuntNote := "候选 " Cands.Length " 个，最好一盘过了 " BestDiag.Passed "/10 格"
+        if (BestDiag.Passed >= 6) {
+            LogPinGridDump(BestDiag)
         }
     }
     return false
 }
 
+; 把一盘格子的采样原样写进日志（每格 29 行、每行 21 个 0/1），
+; 验证总是差一点时，拿这个点阵对着看就知道采样到的到底是什么。
+LogPinGridDump(Diag) {
+    LogFind("login: pin grid dump origin=(" Diag.OX "," Diag.OY ")")
+    Loop 10 {
+        K := A_Index - 1
+        Rows := Diag.Rows[K + 1]
+        if (Rows = "") {
+            continue
+        }
+        LogFind("login: cell " (K + 1) " sample (21x29):")
+        Loop 29 {
+            RV := Rows[A_Index]
+            Line := ""
+            Loop 21 {
+                Line .= ((RV >> (A_Index - 1)) & 1) ? "1" : "0"
+            }
+            LogFind(Line)
+        }
+    }
+}
+
 ; 验证一整盘键盘：OX/OY 是第 1 格中心，FirstCell 先验（假候选死得最快）。
 ; 10 格逐个采样分类：距离 <= PinMaxDist、不重复；密码用到的数字还要和第二像的拉开 >= PinMinMargin。
-ValidatePinGrid(OX, OY, FirstCell, Need, &Cells, &C1X, &C1Y, &Why) {
+; Diag 是给日志用的诊断对象（对象按引用传）：Passed = 通过了几格，
+; Detail = 每格的分类明细，Rows = 每格的采样点阵（按格号存）。
+ValidatePinGrid(OX, OY, FirstCell, Need, &Cells, &C1X, &C1Y, &Why, Diag) {
     global PinCellOff, PinMaxDist, PinMinMargin
     Order := [FirstCell]
     Loop 10 {
@@ -2331,11 +2381,15 @@ ValidatePinGrid(OX, OY, FirstCell, Need, &Cells, &C1X, &C1Y, &Why) {
     for _, K in Order {
         CX := OX + PinCellOff[K + 1][1]
         CY := OY + PinCellOff[K + 1][2]
-        R := PinClassifyCell(SamplePinCell(CX, CY))
+        Rows := SamplePinCell(CX, CY)
+        Diag.Rows[K + 1] := Rows
+        R := PinClassifyCell(Rows)
         if (R = "") {
+            Diag.Detail .= "[" (K + 1) "]empty "
             Why := "cell " (K + 1) " empty"
             return false
         }
+        Diag.Detail .= "[" (K + 1) "]" R.Digit " " R.D1 "/" R.D2 " " R.SW "x" R.SH " "
         if (R.D1 > PinMaxDist) {
             Why := "cell " (K + 1) " dist " R.D1
             return false
@@ -2347,6 +2401,7 @@ ValidatePinGrid(OX, OY, FirstCell, Need, &Cells, &C1X, &C1Y, &Why) {
         Used[R.Digit] := true
         Cells[R.Digit] := [CX + R.GX, CY + R.GY]
         Margins[R.Digit] := R.D2 - R.D1
+        Diag.Passed += 1
         if (K = 0) {
             C1X := CX + R.GX
             C1Y := CY + R.GY
@@ -2365,10 +2420,9 @@ ValidatePinGrid(OX, OY, FirstCell, Need, &Cells, &C1X, &C1Y, &Why) {
     return true
 }
 
-; 采样一个数字格：以格子中心为中点，21 宽 x 29 高逐点采样灰度
-; （公式和 FindText 一样，>120 算亮点），返回 29 个整数（每行一个，
-; 第 (DX+10) 位对应横偏移 DX 的那个点）。采样范围比字形大一圈，是为了
-; 留出平移余量。用整数位运算不用字符串——字符串逐字比一轮要 26 秒（实测教训）。
+; 采样一个数字格：以格子中心为中点，21 宽 x 29 高，从截图缓冲里逐点取灰度
+; （>120 算亮点），返回 29 个整数（每行一个，第 (DX+10) 位对应横偏移 DX 的那个点）。
+; 采样范围比字形大一圈，是为了留出平移余量。
 SamplePinCell(CX, CY) {
     Rows := []
     Loop 29 {
@@ -2376,11 +2430,7 @@ SamplePinCell(CX, CY) {
         RowVal := 0
         Loop 21 {
             DX := A_Index - 11
-            C := PixelGetColor(CX + DX, CY + DY)
-            R := (C >> 16) & 0xFF
-            G := (C >> 8) & 0xFF
-            B := C & 0xFF
-            if ((R * 38 + G * 75 + B * 15) >> 7 > 120) {
+            if (PinCapGray(CX + DX, CY + DY) > 120) {
                 RowVal += (1 << (DX + 10))
             }
         }
@@ -2389,9 +2439,56 @@ SamplePinCell(CX, CY) {
     return Rows
 }
 
+; 把游戏窗口区域整屏截一张存进内存缓冲（GDI BitBlt + GetDIBits，32 位 BGRA，自上而下）。
+; 找键盘前截一次，本轮所有采样都从这张图读。
+CapturePinRegion() {
+    global PinCapX, PinCapY, PinCapW, PinCapH, PinCapBuf
+    LoginRegion(&X1, &Y1, &X2, &Y2)
+    W := X2 - X1
+    H := Y2 - Y1
+    Buf := Buffer(W * H * 4, 0)
+    BI := Buffer(40, 0)
+    NumPut("Int", 40, BI, 0)
+    NumPut("Int", W, BI, 4)
+    NumPut("Int", -H, BI, 8)
+    NumPut("UShort", 1, BI, 12)
+    NumPut("UShort", 32, BI, 14)
+    hdcScreen := DllCall("GetDC", "Ptr", 0, "Ptr")
+    hdcMem := DllCall("CreateCompatibleDC", "Ptr", hdcScreen, "Ptr")
+    hBmp := DllCall("CreateCompatibleBitmap", "Ptr", hdcScreen, "Int", W, "Int", H, "Ptr")
+    hOld := DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hBmp, "Ptr")
+    DllCall("BitBlt", "Ptr", hdcMem, "Int", 0, "Int", 0, "Int", W, "Int", H, "Ptr", hdcScreen, "Int", X1, "Int", Y1, "UInt", 0x00CC0020)
+    DllCall("GetDIBits", "Ptr", hdcMem, "Ptr", hBmp, "UInt", 0, "UInt", H, "Ptr", Buf.Ptr, "Ptr", BI.Ptr, "UInt", 0)
+    DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hOld)
+    DllCall("DeleteObject", "Ptr", hBmp)
+    DllCall("DeleteDC", "Ptr", hdcMem)
+    DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdcScreen)
+    PinCapX := X1
+    PinCapY := Y1
+    PinCapW := W
+    PinCapH := H
+    PinCapBuf := Buf
+}
+
+; 从截图缓冲里取一个屏幕点的灰度（公式和 FindText 一样）；点在缓冲外返回 -1（当暗点）。
+PinCapGray(X, Y) {
+    global PinCapX, PinCapY, PinCapW, PinCapH, PinCapBuf
+    LX := X - PinCapX
+    LY := Y - PinCapY
+    if (LX < 0 || LY < 0 || LX >= PinCapW || LY >= PinCapH) {
+        return -1
+    }
+    Off := (LY * PinCapW + LX) * 4
+    B := NumGet(PinCapBuf, Off, "UChar")
+    G := NumGet(PinCapBuf, Off + 1, "UChar")
+    R := NumGet(PinCapBuf, Off + 2, "UChar")
+    return (R * 38 + G * 75 + B * 15) >> 7
+}
+
 ; 给一个采样格子分类：先裁到亮点的边界，再和 10 个模板逐个比（±2 平移取最小距离）。
-; 返回 {Digit, D1, D2, GX, GY}：D1/D2 是离最近/第二近模板的距离，
-; GX/GY 是字形中心相对格子中心的偏移（点的时候按这个修正）；没有亮点返回 ""。
+; 返回 {Digit, D1, D2, GX, GY, SW, SH}：D1/D2 是离最近/第二近模板的距离，
+; GX/GY 是字形中心相对格子中心的偏移（点的时候按这个修正），
+; SW/SH 是裁剪后点阵的宽高（日志诊断用）；没有亮点返回 ""。
 PinClassifyCell(Rows) {
     global PinTpl
     Y0 := -1
@@ -2445,7 +2542,7 @@ PinClassifyCell(Rows) {
             D2 := Dist
         }
     }
-    return {Digit: BestD, D1: D1, D2: D2, GX: (X0 + X1) // 2 - 10, GY: (Y0 + Y1) // 2 - 14}
+    return {Digit: BestD, D1: D1, D2: D2, GX: (X0 + X1) // 2 - 10, GY: (Y0 + Y1) // 2 - 14, SW: SW, SH: SH}
 }
 
 ; 裁剪后的采样和一个模板的距离：在 ±2 平移范围内把两者放进并集框逐点异或数差点，取最小。
