@@ -204,68 +204,50 @@ AccountsDir := A_ScriptDir "\accounts"
 LoginRunning := false     ; 登陆流程是否在进行（Esc / 其他功能启动 / 全部停止 会把它置 false，流程在下一个等待点退出）
 ; 图案分工：Login / 输入 / 是 用 FindText 图案（从 1.jpg、3.jpg、4.jpg 裁的，灰度阈值法，1 = 暗点）；
 ; 二次密码键盘不用任何“招牌”图案当锚点——黄色“2级密码”字样在她屏幕上有多处假匹配（实测栽过），
-; 改成直接找数字候选、再整盘逐格验证（见 HuntPinKeypad / ValidatePinGrid）。
-; 找图和验证的结果都会写进 fenix_Find_Log.txt。
+; 改成：数字图案直接从她逐个截的 10 张数字图生成，拿 FindText 在整个游戏窗口里逐个数字
+; 找命中，再按键盘格距把命中拼成一整盘才认（见 HuntPinKeypad）。
+; 找图和拼图的结果都会写进 fenix_Find_Log.txt。
 ; Login 按钮上的 "Login" 字样（1.jpg）
 LoginBtnText := "|<Login>*150$39.zzzzzzzzzzzzzzzzzzzzTzzzTztzzzlzzDzzzzztz7UTzzDUM2M7twlCH4zDb9mNrtwtCHCzDb9mNrtwnUHCz0svnNrzzzAzzzzzyDzzzzzzzzzzzzzzzzzzzzzw"
 ; 二次密码界面里变亮的 "输入" 按钮字样（3.jpg）
 SecEnterText := "|<Enter>*160$31.zzzzzzzzzzzzzzzznbszztVzDzk6TnzwU7tzwDzsTy0NwDzk0y7zs0SNzk0DAzy07DDz0nDnzUFDwzzzzzzzzzzzzzzzzU"
 ; 登陆确认对话框里的 "是"（4.jpg）
 ConfirmYesText := "|<Yes>*150$17.zzzzzzzzzk7zjjz0Tyyzw1zzzz01zxzzMDyrzujzi0zzzzzzzzzU"
-; 数字键盘上每个数字（2.jpg，11x16，只裁数字本身加两三个像素的边，不含按键的亮边框——
-; 边框在真实屏幕上比截图亮，裁进去会整个对不上；数字 2 已和真实屏幕截图逐点核对过）。
-; 数字随机排列，所以每个数字单独认
+; 数字键盘上的每个数字：图案直接从她逐个截下来的数字图（十张小图，依次是 1 到 9、0）
+; 按原图大小生成，一个合成像素都没加；阈值 160 和图案写在一起。
+; 数字随机排列，所以每个数字单独认；认的时候只找密码里用到的那几个。
 DigitText := Map(
-    "0", "|<D0>*160$11.zzzzzz1wttnnbbDCSQwttnnbbDUzzs",
-    "1", "|<D1>*160$11.zzzzzztz3zbzDyTwztznzbzDyTwzzs",
-    "2", "|<D2>*160$11.zzzzzz1wttnzbzDwznzDwznzbz0Tzs",
-    "3", "|<D3>*160$11.zzzzzz1wttnzbzDUzwztznnbbDUzzs",
-    "4", "|<D4>*160$11.zzzzzzszVz3wbtDaTAwttnk3zDyTzs",
-    "5", "|<D5>*160$11.zzzzzy0wztznzUTCTwztznnbbDUzzs",
-    "6", "|<D6>*160$11.zzzzzz1wttnnzbz0yQwttnnbbDUzzs",
-    "7", "|<D7>*160$11.zzzzzy0ztznzDyTtznzDyTwztznzzs",
-    "8", "|<D8>*160$11.zzzzzz1wttnnbbDUyQwttnnbbDUzzs",
-    "9", "|<D9>*160$11.zzzzzz1wttnnbbDCT0ztznnbbDUzzs"
+    "0", "|<P0>*160$17.zzzzzzzzzkTzCTyQzwtztnznbzbDzCTyQzwtztnzsDzzzzzzzzzzzz",
+    "1", "|<P1>*160$14.zzzzzzzzzztzsTzbztzyTzbztzyTzbztzyTzbzzzzzzzzzzzzzzs",
+    "2", "|<P2>*160$16.zzzzzzzzzzzw7zbDyQzznzzDztzzDztzzDztzzbzy0zzzzzzzzzzzs",
+    "3", "|<P3>*160$20.zzzzzzzzzzzkTztnzyQzzzDzznzz1zzzDzznzzwzzbDztnzz1zzzzzzzzzzzzzzs",
+    "4", "|<P4>*160$16.zzzzzzzzzzzz7zsTzVzwbzmTyNztbzCTwtzk3zyTztzzzzzzzzzzzs",
+    "5", "|<P5>*160$16.zzzzzzzzzzzzzz0TwzznzzDzw3znbzyTztzzbzCTwtzsDzzzzzzzzs",
+    "6", "|<P6>*160$18.zzzzzzzzzzzzzzzzUzzCTzCTzDzzDzz0zzCTzCTzCTzCTzCTzUzzzzzzzzzzzzzU",
+    "7", "|<P7>*160$20.zzzzzzzzzzzzzzs3zzwzzzDzzbzztzzwzzzDzzbzztzzyTzzbzztzzzzzzzzzzzzzzzzzzU",
+    "8", "|<P8>*160$15.zzzzzy3zbDwtzbDwtzkTwtzbDwtzbDwtzkTzzzzzzzw",
+    "9", "|<P9>*160$20.zzzzzzzzzzzkTztnzyQzzbDztnzyQzzkDzznzzwzzbDztnzz1zzzzzzzzzzzU"
 )
-; 上面的数字图案在这里只当“候选线索”用：容错故意放宽（漏掉真数字比多几个假候选严重），
-; 候选算不算数由后面的整盘格子验证说了算（见 ValidatePinGrid），不在这一步卡。
-PinCandErr1 := 0.06
-PinCandErr0 := 0.15
+; 找数字的容错：真命中在 2.jpg、3.jpg 和她机器的实屏采样上量到的误差都是 0；
+; 最容易串认的是 3 的图案认到 8 的格子（误差 0.029/0.000）。0.015 两边都卡得住：
+; 真命中留了约 5 个点的余量，量到的串认全都过不去。就算偶尔串进来一个，拼图
+; 那一步还有“被别的数字图案抢认的命中不算数”兜底（见 PinCellContested）。
+PinErr1 := 0.015
+PinErr0 := 0.015
 ; 以 FindText 找到的图案中心为基准的偏移（按截图量出来的）
 LoginAccountDX := 0       ; Login 按钮 -> 账号输入框
 LoginAccountDY := -139
 ; 二次密码键盘的几何（格子中心之间横竖都是 36；量自 2.jpg 并在她机器的实屏采样上核对过）：
-PinCandOff := [1, 2]      ; 候选图案中心 -> 它所在格子的中心
+; 每个数字的图案中心 -> 它所在格子中心的偏移（从她的截图像素量出，都是个位数像素）
+PinDigitOff := Map(
+    "0", [-1, 0], "1", [0, -2], "2", [0, 0], "3", [0, 0], "4", [0, 0],
+    "5", [-1, 0], "6", [0, 0], "7", [0, 0], "8", [0, 0], "9", [0, 0]
+)
 ; 10 个格子的中心相对第 1 格中心的偏移（行优先，第 4 行只有 1 格）
 PinCellOff := [[0, 0], [36, 0], [72, 0], [0, 36], [36, 36], [72, 36], [0, 72], [36, 72], [72, 72], [0, 108]]
 PinBoxOff := [161, 25]    ; 第 1 格中心 -> 二次密码输入框中心
 PinEnterOff := [159, 107] ; 第 1 格中心 -> “输入”按钮中心
-; 格子验证的门槛（她机器实测：真格子距离 0，密码数字和第二名的差距 11~27，门槛取在中间）
-PinMaxDist := 5           ; 一个格子离它认出的数字模板最多差几个点
-PinMinMargin := 5         ; 密码用到的数字和第二像的数字至少拉开几个点
-PinHuntNote := ""         ; 最近一次找键盘的小结（候选数等），登陆失败时写进日志备查
-; 整屏截图缓冲（CapturePinRegion 填）：找键盘时先截一张，本轮采样全从内存读，
-; 不再逐点 PixelGetColor——她机器上逐点取色一个格子要几百毫秒，一轮验证要几秒（实测教训）。
-PinCapX := 0
-PinCapY := 0
-PinCapW := 0
-PinCapH := 0
-PinCapBuf := ""
-; 数字验证模板：从她逐个截的数字图按灰度 >120 二值化、裁到字形边界生成（2026-11-04）。
-; 每行一个整数：第 c 位（1<<c）对应字形第 c 列（左到右），1 = 亮点。
-; 已和她机器的实屏采样逐格验过：10 个格子全是距离 0 命中。
-PinTpl := Map(
-    "0", {W: 7, H: 12, Rows: [62, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 62]},
-    "1", {W: 4, H: 12, Rows: [12, 15, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12]},
-    "2", {W: 7, H: 12, Rows: [62, 99, 99, 96, 96, 48, 24, 12, 6, 3, 3, 127]},
-    "3", {W: 7, H: 12, Rows: [62, 99, 99, 96, 96, 126, 96, 96, 96, 99, 99, 62]},
-    "4", {W: 8, H: 12, Rows: [112, 120, 120, 124, 108, 102, 102, 99, 99, 255, 96, 96]},
-    "5", {W: 7, H: 12, Rows: [127, 3, 3, 3, 63, 99, 96, 96, 96, 99, 99, 62]},
-    "6", {W: 7, H: 12, Rows: [62, 99, 99, 3, 3, 63, 99, 99, 99, 99, 99, 62]},
-    "7", {W: 7, H: 12, Rows: [127, 96, 96, 48, 48, 24, 24, 12, 12, 12, 12, 12]},
-    "8", {W: 7, H: 12, Rows: [62, 99, 99, 99, 99, 127, 99, 99, 99, 99, 99, 62]},
-    "9", {W: 7, H: 12, Rows: [62, 99, 99, 99, 99, 99, 126, 96, 96, 99, 99, 62]}
-)
+PinHuntNote := ""         ; 最近一次找键盘的小结（各数字命中数等），登陆失败时写进日志备查
 
 ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键（抽奖），"two" = 仅两点点击（合成）
 LastClickMode := "" ; F12 启动时用上次点过的开箱子模式；刚打开脚本还没点过模式按钮时为空，F12 按了没反应（第一次必须先点按钮）。只记本次运行，不存配置，关掉脚本就没了
@@ -2196,7 +2178,7 @@ DoLogin(Name, Pwd, Pwd2) {
         ShowTempToolTip("二次密码已输入，但没等到登陆确认对话框")
     } else if (!PinDone && Pwd2 != "") {
         LoginStatus("没等到可用的二次密码键盘")
-        LogFind("login: pin keypad never validated, hunt: " PinHuntNote)
+        LogFind("login: pin keypad not found, hunt: " PinHuntNote)
         ToolTip()
         ShowTempToolTip("没等到可用的二次密码键盘（细节在 fenix_Find_Log.txt 里）")
     } else {
@@ -2207,11 +2189,10 @@ DoLogin(Name, Pwd, Pwd2) {
     }
 }
 
-; 二次密码（不用黄字锚点）：先把鼠标挪开，再用 DigitText 图案在游戏窗口里撒网找
-; 密码数字的候选位置；每个候选按键盘格距（36x36）推出整盘 10 个格子，逐格采样、
-; 用 PinTpl 模板逐点验证——10 格个个认得出、互不重复、密码数字和第二像的拉开差距，
-; 全过才点，一个验不过就一个都不点。找键盘和验证的细节都写进 fenix_Find_Log.txt。
-; 返回 true = 已输完二次密码并点了“输入”；false = 这一轮没找到能通过验证的键盘。
+; 二次密码（不用黄字锚点）：先把鼠标挪开，再用 DigitText 图案在游戏窗口里找
+; 密码用到的每个数字的命中位置，按键盘格距（36x36）拼成一整盘才开始点
+; （见 HuntPinKeypad）——拼不成盘就一个都不点。细节都写进 fenix_Find_Log.txt。
+; 返回 true = 已输完二次密码并点了“输入”；false = 这一轮没找到键盘。
 TryEnterSecondPassword(Name, Pwd2) {
     global SecEnterText, PinBoxOff, PinEnterOff
     if (!RegExMatch(Pwd2, "^\d+$")) {
@@ -2264,321 +2245,173 @@ FindWaitInRect(Text, &CX, &CY, X1, Y1, X2, Y2, TimeoutMs) {
     }
 }
 
-; 找二次密码键盘：收集候选 -> 逐个候选、逐个格位推整盘验证。
-; 成功时 Cells 是 数字->[点击X, 点击Y]（按字形中心修正过），C1X/C1Y 是第 1 格的字形中心。
+; 找二次密码键盘：用 DigitText 图案（从她逐个截的数字图生成的）在整个游戏窗口里
+; 逐个数字找命中，再按格距拼图。命中最少的数字最可信，拿它当锚：把它轮流当作
+; 10 个格子中的每一个，推出整盘的原点，再看其余每个密码数字是不是都恰好落在
+; 一个还没被占的格子上。全部落得上才算找到这盘键盘；拼不成，一个键都不点。
+; 成功时 Cells 是 数字->[点击X, 点击Y]，C1X/C1Y 是第 1 格中心
+; （密码框和“输入”按钮的位置都从它推）。
 HuntPinKeypad(Need, &Cells, &C1X, &C1Y) {
-    global DigitText, PinCandErr1, PinCandErr0, PinCandOff, PinCellOff, PinHuntNote
+    global DigitText, PinErr1, PinErr0, PinDigitOff, PinCellOff, PinHuntNote
     LoginRegion(&X1, &Y1, &X2, &Y2)
-    Cands := []
+    ByDigit := Map()
+    Counts := ""
     for D, _ in Need {
         FX := 0
         FY := 0
         Matches := ""
-        try Matches := FindText(&FX, &FY, X1, Y1, X2, Y2, PinCandErr1, PinCandErr0, DigitText[D])
+        try Matches := FindText(&FX, &FY, X1, Y1, X2, Y2, PinErr1, PinErr0, DigitText[D])
+        List := []
         if (IsObject(Matches)) {
             for _, M in Matches {
-                Cands.Push([D, M.mx + PinCandOff[1], M.my + PinCandOff[2]])
-            }
-        }
-    }
-    LogFind("login: pin hunt candidates=" Cands.Length)
-    PinHuntNote := "候选 " Cands.Length " 个"
-    CapturePinRegion()
-    HuntStart := A_TickCount
-    BestDiag := ""
-    BestWhy := ""
-    BestCand := ""
-    BestK := 0
-    Tried := []
-    for _, C in Cands {
-        if (Tried.Length >= 60 || A_TickCount - HuntStart > 15000) {
-            break
-        }
-        Dup := false
-        for _, T in Tried {
-            if (Abs(T[1] - C[2]) <= 6 && Abs(T[2] - C[3]) <= 6) {
-                Dup := true
-                break
-            }
-        }
-        if (Dup) {
-            continue
-        }
-        Tried.Push([C[2], C[3]])
-        Loop 10 {
-            if (A_TickCount - HuntStart > 15000) {
-                break
-            }
-            K := A_Index - 1
-            OX := C[2] - PinCellOff[K + 1][1]
-            OY := C[3] - PinCellOff[K + 1][2]
-            if (OX < 10 || OY < 14 || OX + 92 > A_ScreenWidth || OY + 122 > A_ScreenHeight) {
-                continue
-            }
-            Diag := {Passed: 0, Detail: "", Rows: ["", "", "", "", "", "", "", "", "", ""], OX: OX, OY: OY}
-            if (ValidatePinGrid(OX, OY, K, Need, &Cells, &C1X, &C1Y, &Why, Diag)) {
-                LogFind("login: pin keypad OK, cand " C[1] " at (" C[2] "," C[3] ") as cell " (K + 1) ", origin=(" OX "," OY ")")
-                return true
-            }
-            if (BestDiag = "" || Diag.Passed > BestDiag.Passed) {
-                BestDiag := Diag
-                BestWhy := Why
-                BestCand := C
-                BestK := K
-            }
-        }
-    }
-    if (BestDiag != "") {
-        LogFind("login: pin hunt best: cand " BestCand[1] " as cell " (BestK + 1) " passed " BestDiag.Passed "/10 (" BestWhy ") " BestDiag.Detail)
-        PinHuntNote := "候选 " Cands.Length " 个，最好一盘过了 " BestDiag.Passed "/10 格"
-        if (BestDiag.Passed >= 6) {
-            LogPinGridDump(BestDiag)
-        }
-    }
-    return false
-}
-
-; 把一盘格子的采样原样写进日志（每格 29 行、每行 21 个 0/1），
-; 验证总是差一点时，拿这个点阵对着看就知道采样到的到底是什么。
-LogPinGridDump(Diag) {
-    LogFind("login: pin grid dump origin=(" Diag.OX "," Diag.OY ")")
-    Loop 10 {
-        K := A_Index - 1
-        Rows := Diag.Rows[K + 1]
-        if (Rows = "") {
-            continue
-        }
-        LogFind("login: cell " (K + 1) " sample (21x29):")
-        Loop 29 {
-            RV := Rows[A_Index]
-            Line := ""
-            Loop 21 {
-                Line .= ((RV >> (A_Index - 1)) & 1) ? "1" : "0"
-            }
-            LogFind(Line)
-        }
-    }
-}
-
-; 验证一整盘键盘：OX/OY 是第 1 格中心，FirstCell 先验（假候选死得最快）。
-; 10 格逐个采样分类：距离 <= PinMaxDist、不重复；密码用到的数字还要和第二像的拉开 >= PinMinMargin。
-; Diag 是给日志用的诊断对象（对象按引用传）：Passed = 通过了几格，
-; Detail = 每格的分类明细，Rows = 每格的采样点阵（按格号存）。
-ValidatePinGrid(OX, OY, FirstCell, Need, &Cells, &C1X, &C1Y, &Why, Diag) {
-    global PinCellOff, PinMaxDist, PinMinMargin
-    Order := [FirstCell]
-    Loop 10 {
-        if (A_Index - 1 != FirstCell) {
-            Order.Push(A_Index - 1)
-        }
-    }
-    Cells := Map()
-    Margins := Map()
-    Used := Map()
-    C1X := 0
-    C1Y := 0
-    Why := ""
-    for _, K in Order {
-        CX := OX + PinCellOff[K + 1][1]
-        CY := OY + PinCellOff[K + 1][2]
-        Rows := SamplePinCell(CX, CY)
-        Diag.Rows[K + 1] := Rows
-        R := PinClassifyCell(Rows)
-        if (R = "") {
-            Diag.Detail .= "[" (K + 1) "]empty "
-            Why := "cell " (K + 1) " empty"
-            return false
-        }
-        Diag.Detail .= "[" (K + 1) "]" R.Digit " " R.D1 "/" R.D2 " " R.SW "x" R.SH " "
-        if (R.D1 > PinMaxDist) {
-            Why := "cell " (K + 1) " dist " R.D1
-            return false
-        }
-        if (Used.Has(R.Digit)) {
-            Why := "cell " (K + 1) " dup " R.Digit
-            return false
-        }
-        Used[R.Digit] := true
-        Cells[R.Digit] := [CX + R.GX, CY + R.GY]
-        Margins[R.Digit] := R.D2 - R.D1
-        Diag.Passed += 1
-        if (K = 0) {
-            C1X := CX + R.GX
-            C1Y := CY + R.GY
-        }
-    }
-    for D, _ in Need {
-        if (!Cells.Has(D)) {
-            Why := "pin digit " D " missing"
-            return false
-        }
-        if (Margins[D] < PinMinMargin) {
-            Why := "pin digit " D " margin " Margins[D]
-            return false
-        }
-    }
-    return true
-}
-
-; 采样一个数字格：以格子中心为中点，21 宽 x 29 高，从截图缓冲里逐点取灰度
-; （>120 算亮点），返回 29 个整数（每行一个，第 (DX+10) 位对应横偏移 DX 的那个点）。
-; 采样范围比字形大一圈，是为了留出平移余量。
-SamplePinCell(CX, CY) {
-    Rows := []
-    Loop 29 {
-        DY := A_Index - 15
-        RowVal := 0
-        Loop 21 {
-            DX := A_Index - 11
-            if (PinCapGray(CX + DX, CY + DY) > 120) {
-                RowVal += (1 << (DX + 10))
-            }
-        }
-        Rows.Push(RowVal)
-    }
-    return Rows
-}
-
-; 把游戏窗口区域整屏截一张存进内存缓冲（GDI BitBlt + GetDIBits，32 位 BGRA，自上而下）。
-; 找键盘前截一次，本轮所有采样都从这张图读。
-CapturePinRegion() {
-    global PinCapX, PinCapY, PinCapW, PinCapH, PinCapBuf
-    LoginRegion(&X1, &Y1, &X2, &Y2)
-    W := X2 - X1
-    H := Y2 - Y1
-    Buf := Buffer(W * H * 4, 0)
-    BI := Buffer(40, 0)
-    NumPut("Int", 40, BI, 0)
-    NumPut("Int", W, BI, 4)
-    NumPut("Int", -H, BI, 8)
-    NumPut("UShort", 1, BI, 12)
-    NumPut("UShort", 32, BI, 14)
-    hdcScreen := DllCall("GetDC", "Ptr", 0, "Ptr")
-    hdcMem := DllCall("CreateCompatibleDC", "Ptr", hdcScreen, "Ptr")
-    hBmp := DllCall("CreateCompatibleBitmap", "Ptr", hdcScreen, "Int", W, "Int", H, "Ptr")
-    hOld := DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hBmp, "Ptr")
-    DllCall("BitBlt", "Ptr", hdcMem, "Int", 0, "Int", 0, "Int", W, "Int", H, "Ptr", hdcScreen, "Int", X1, "Int", Y1, "UInt", 0x00CC0020)
-    DllCall("GetDIBits", "Ptr", hdcMem, "Ptr", hBmp, "UInt", 0, "UInt", H, "Ptr", Buf.Ptr, "Ptr", BI.Ptr, "UInt", 0)
-    DllCall("SelectObject", "Ptr", hdcMem, "Ptr", hOld)
-    DllCall("DeleteObject", "Ptr", hBmp)
-    DllCall("DeleteDC", "Ptr", hdcMem)
-    DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdcScreen)
-    PinCapX := X1
-    PinCapY := Y1
-    PinCapW := W
-    PinCapH := H
-    PinCapBuf := Buf
-}
-
-; 从截图缓冲里取一个屏幕点的灰度（公式和 FindText 一样）；点在缓冲外返回 -1（当暗点）。
-PinCapGray(X, Y) {
-    global PinCapX, PinCapY, PinCapW, PinCapH, PinCapBuf
-    LX := X - PinCapX
-    LY := Y - PinCapY
-    if (LX < 0 || LY < 0 || LX >= PinCapW || LY >= PinCapH) {
-        return -1
-    }
-    Off := (LY * PinCapW + LX) * 4
-    B := NumGet(PinCapBuf, Off, "UChar")
-    G := NumGet(PinCapBuf, Off + 1, "UChar")
-    R := NumGet(PinCapBuf, Off + 2, "UChar")
-    return (R * 38 + G * 75 + B * 15) >> 7
-}
-
-; 给一个采样格子分类：先裁到亮点的边界，再和 10 个模板逐个比（±2 平移取最小距离）。
-; 返回 {Digit, D1, D2, GX, GY, SW, SH}：D1/D2 是离最近/第二近模板的距离，
-; GX/GY 是字形中心相对格子中心的偏移（点的时候按这个修正），
-; SW/SH 是裁剪后点阵的宽高（日志诊断用）；没有亮点返回 ""。
-PinClassifyCell(Rows) {
-    global PinTpl
-    Y0 := -1
-    Y1 := -1
-    Loop 29 {
-        if (Rows[A_Index] != 0) {
-            if (Y0 < 0) {
-                Y0 := A_Index - 1
-            }
-            Y1 := A_Index - 1
-        }
-    }
-    if (Y0 < 0) {
-        return ""
-    }
-    ORV := 0
-    Loop (Y1 - Y0 + 1) {
-        ORV |= Rows[Y0 + A_Index]
-    }
-    X0 := 0
-    Loop 21 {
-        if ((ORV >> (A_Index - 1)) & 1) {
-            X0 := A_Index - 1
-            break
-        }
-    }
-    X1 := 0
-    Loop 21 {
-        B := 21 - A_Index
-        if ((ORV >> B) & 1) {
-            X1 := B
-            break
-        }
-    }
-    SW := X1 - X0 + 1
-    SH := Y1 - Y0 + 1
-    SRows := []
-    Loop SH {
-        SRows.Push((Rows[Y0 + A_Index] >> X0) & ((1 << SW) - 1))
-    }
-    BestD := ""
-    D1 := 100000
-    D2 := 100000
-    for Dg, Tpl in PinTpl {
-        Dist := PinDistTrim(SRows, SW, SH, Tpl)
-        if (Dist < D1) {
-            D2 := D1
-            D1 := Dist
-            BestD := Dg
-        } else if (Dist < D2) {
-            D2 := Dist
-        }
-    }
-    return {Digit: BestD, D1: D1, D2: D2, GX: (X0 + X1) // 2 - 10, GY: (Y0 + Y1) // 2 - 14, SW: SW, SH: SH}
-}
-
-; 裁剪后的采样和一个模板的距离：在 ±2 平移范围内把两者放进并集框逐点异或数差点，取最小。
-PinDistTrim(SRows, SW, SH, Tpl) {
-    TW := Tpl.W
-    TH := Tpl.H
-    TRows := Tpl.Rows
-    Best := 100000
-    Loop 5 {
-        DY := A_Index - 3
-        Loop 5 {
-            DX := A_Index - 3
-            UX0 := Min(0, DX)
-            UY0 := Min(0, DY)
-            URows := Max(SH, DY + TH) - UY0
-            Dist := 0
-            Loop URows {
-                UY := UY0 + A_Index - 1
-                SV := (UY >= 0 && UY < SH) ? SRows[UY + 1] : 0
-                TY := UY - DY
-                TV := (TY >= 0 && TY < TH) ? TRows[TY + 1] : 0
-                V := (SV << (0 - UX0)) ^ (TV << (DX - UX0))
-                while (V) {
-                    V &= V - 1
-                    Dist++
-                }
-                if (Dist >= Best) {
+                List.Push({X: M.mx + PinDigitOff[D][1], Y: M.my + PinDigitOff[D][2], Bad: false})
+                if (List.Length >= 30) {
                     break
                 }
             }
-            if (Dist < Best) {
-                Best := Dist
+        }
+        ByDigit[D] := List
+        Counts .= D ":" List.Length " "
+    }
+    LogFind("login: pin hunt matches " Counts)
+    for D, _ in Need {
+        if (ByDigit[D].Length = 0) {
+            PinHuntNote := "命中 " Counts "（数字 " D " 一个都没找到）"
+            return false
+        }
+    }
+    ; 标注每个命中是不是被别的数字图案在同一位置也认出来了（串认的命中会被抢认，
+    ; 真命中不会——见 PinCellContested），放数字时优先用没被抢认的。
+    for D, _ in Need {
+        for _, M in ByDigit[D] {
+            M.Bad := PinCellContested(M.X, M.Y, D)
+        }
+    }
+    ; 命中数从少到多排顺序：先放最可信的，锚也用第一个
+    Order := []
+    for D, _ in Need {
+        Order.Push(D)
+    }
+    Loop Order.Length - 1 {
+        I := A_Index
+        Loop Order.Length - I {
+            J := A_Index
+            if (ByDigit[Order[J + 1]].Length < ByDigit[Order[J]].Length) {
+                Tmp := Order[J]
+                Order[J] := Order[J + 1]
+                Order[J + 1] := Tmp
             }
         }
     }
-    return Best
+    AnchorD := Order[1]
+    AnchorList := []
+    for _, M in ByDigit[AnchorD] {
+        if (!M.Bad) {
+            AnchorList.Push(M)
+        }
+    }
+    for _, M in ByDigit[AnchorD] {
+        if (M.Bad) {
+            AnchorList.Push(M)
+        }
+    }
+    for _, A in AnchorList {
+        Loop 10 {
+            K := A_Index - 1
+            OX := A.X - PinCellOff[K + 1][1]
+            OY := A.Y - PinCellOff[K + 1][2]
+            if (OX < 4 || OY < 4 || OX + 108 > A_ScreenWidth || OY + 144 > A_ScreenHeight) {
+                continue
+            }
+            Placed := Map()
+            Placed[AnchorD] := [A.X, A.Y]
+            UsedCells := Map()
+            UsedCells[K] := true
+            OK := true
+            for _, D in Order {
+                if (D = AnchorD) {
+                    continue
+                }
+                Pick := ""
+                Loop 2 {
+                    WantBad := (A_Index = 2)
+                    for _, M in ByDigit[D] {
+                        if (M.Bad != WantBad) {
+                            continue
+                        }
+                        Col := Round((M.X - OX) / 36)
+                        Row := Round((M.Y - OY) / 36)
+                        if (Col < 0 || Col > 2 || Row < 0 || Row > 3) {
+                            continue
+                        }
+                        if (Abs(M.X - (OX + Col * 36)) > 4 || Abs(M.Y - (OY + Row * 36)) > 4) {
+                            continue
+                        }
+                        CellIdx := (Row < 3) ? (Row * 3 + Col) : 9
+                        if (Row = 3 && Col != 0) {
+                            continue
+                        }
+                        if (UsedCells.Has(CellIdx)) {
+                            continue
+                        }
+                        Pick := [M, CellIdx]
+                        break
+                    }
+                    if (Pick != "") {
+                        break
+                    }
+                }
+                if (Pick = "") {
+                    OK := false
+                    break
+                }
+                Placed[D] := [Pick[1].X, Pick[1].Y]
+                UsedCells[Pick[2]] := true
+            }
+            if (OK) {
+                Cells := Placed
+                C1X := OX
+                C1Y := OY
+                Desc := ""
+                for D, _ in Need {
+                    Desc .= D "@(" Placed[D][1] "," Placed[D][2] ") "
+                }
+                LogFind("login: pin keypad OK, origin=(" OX "," OY ") " Desc)
+                PinHuntNote := "命中 " Counts "拼图成功"
+                return true
+            }
+        }
+    }
+    PinHuntNote := "命中 " Counts "但拼不成一盘"
+    LogFind("login: pin hunt: no constellation fits")
+    return false
+}
+
+; 一个位置是不是也被别的数字的图案认出来了：在它周围一小块地方逐个图案试，
+; 哪个图案的命中中心落到这同一个位置（±4），就算被抢认。
+; 为什么管用：3 的图案会认错 8 的格子（3 的笔画是 8 的一部分，背景只差几个点），
+; 但那个格子会被 8 自己的图案满分认出；反过来真格子不会被任何别的图案认出
+; （在 2.jpg、3.jpg 和实屏采样上逐个量过）。所以串认的命中必然被抢认，真命中不会。
+PinCellContested(CX, CY, SelfD) {
+    global DigitText, PinErr1, PinErr0, PinDigitOff
+    Loop Parse, "0123456789" {
+        E := A_LoopField
+        if (E = SelfD) {
+            continue
+        }
+        FX := 0
+        FY := 0
+        Matches := ""
+        try Matches := FindText(&FX, &FY, CX - 24, CY - 24, CX + 24, CY + 24, PinErr1, PinErr0, DigitText[E])
+        if (IsObject(Matches)) {
+            for _, M in Matches {
+                if (Abs(M.mx + PinDigitOff[E][1] - CX) <= 4 && Abs(M.my + PinDigitOff[E][2] - CY) <= 4) {
+                    return true
+                }
+            }
+        }
+    }
+    return false
 }
 
 ; ===== 快捷键 =====
