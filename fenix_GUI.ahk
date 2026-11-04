@@ -69,10 +69,9 @@ DetectHiddenWindows(true)
 ;      再点一次正在运行的按钮就是停止。
 ;   4. 账号登陆（没有快捷键，只能点按钮）：
 ;      下拉框里是 accounts 文件夹里已保存的账号（一个账号一个 .txt，
-;      文件名就是账号名，第 1 行是登陆密码；如果要输二次密码，
-;      手动在第 2 行写二次密码，只能是数字）。右边三个按钮：
-;      保存（账号名 + 下面密码框里的密码，存成 accounts\账号名.txt；
-;      已有账号的第 2 行以后的内容会保留）、登陆、删除。
+;      文件名就是账号名，第 1 行是登陆密码，第 2 行是二次密码）。右边三个按钮：
+;      保存（账号名 + 下面两个框里的密码和二次密码，存成 accounts\账号名.txt；
+;      两个框都必须填，缺一个保存不了）、登陆、删除。
 ;      点登陆：窗口最小化 -> 激活 Atlantica Online Fenix 客户端 ->
 ;      FindText 找 Login 按钮 -> 点账号框输账号 -> Tab -> 输密码 ->
 ;      点 Login -> 等待：出现二次密码界面就点密码框、用 FindText
@@ -312,16 +311,16 @@ HelpText := "快捷键说明"
     . "`nF4：回放录制，点按回放 1 次，按住约 2 秒弹出对话框填重复次数（默认 0 = 无限制，填 3 就回放 3 次），回放中再按 F4 立刻停（快捷切换开启时才管用）"
     . "`nF5：开始 / 停止录制，回放中按 F5 也立刻停（快捷切换开启时才管用）"
     . "`nEsc：取点时取消；账号登陆进行中按 Esc 取消登陆"
-    . "`n功能 4「账号登陆」没有快捷键：下拉框选账号（或输新账号名）、密码框填密码、点保存，就会在 accounts 文件夹生成 账号名.txt（第 1 行是密码）。需要二次密码的账号，手动打开这个 txt，在第 2 行写二次密码（数字）。点登陆会自动完成输账号密码、二次密码、登陆确认"
+    . "`n功能 4「账号登陆」没有快捷键：下拉框选账号（或输新账号名）、下面两个框分别填密码和二次密码（二次密码只能是数字），两个都填了点保存才有效，存成 accounts 文件夹里的 账号名.txt（第 1 行密码、第 2 行二次密码），不用再去改 txt 文件。点登陆会自动完成输账号密码、二次密码、登陆确认"
 ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
     if (HelpShown) {
         txtHelp.Visible := false
-        MyGui.Show("w380 h566")
+        MyGui.Show("w380 h596")
         HelpShown := false
     } else {
         txtHelp.Visible := true
-        MyGui.Show("w700 h566")
+        MyGui.Show("w700 h596")
         HelpShown := true
     }
 }
@@ -389,7 +388,7 @@ MyGui.Add("Text", "x10 y378 w360 h2 +0x1000")
 
 ; ---- 4. 账号登陆 ----
 ; 下拉框只显示账号名（accounts 文件夹里的 .txt 文件名），不显示密码。
-; 保存时账号名从下拉框里输，密码在下面的密码框里输。
+; 保存时账号名从下拉框里输，密码和二次密码在下面两个框里输，两个都填了才能保存。
 MyGui.Add("Text", "x10 y388 w360", "4. 账号登陆（无快捷键）")
 cmbAccounts := MyGui.Add("ComboBox", "x10 y413 w170", [])
 btnSaveAccount := MyGui.Add("Button", "x190 y413 w55 h30", "保存")
@@ -399,21 +398,23 @@ btnLogin.OnEvent("Click", MinimizeAndRun(LoginAccount))
 btnDeleteAccount := MyGui.Add("Button", "x310 y413 w55 h30", "删除")
 btnDeleteAccount.OnEvent("Click", MinimizeAndRun(DeleteAccount))
 edtAccPwd := MyGui.Add("Edit", "x10 y449 w170 +Password")
-MyGui.Add("Text", "x190 y453 w180", "← 密码（只在保存时填）")
-txtAccStatus := MyGui.Add("Text", "x10 y484 w360", "状态：未登陆")
-MyGui.Add("Text", "x10 y508 w360 h2 +0x1000")
+MyGui.Add("Text", "x190 y453 w180", "← 密码")
+edtAccPwd2 := MyGui.Add("Edit", "x10 y479 w170 +Password")
+MyGui.Add("Text", "x190 y483 w180", "← 二次密码（数字）")
+txtAccStatus := MyGui.Add("Text", "x10 y514 w360", "状态：未登陆")
+MyGui.Add("Text", "x10 y538 w360 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y518 w86 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y548 w86 h30", "全部停止")
 btnStopAll.OnEvent("Click", MinimizeAndRun(StopAll))
-btnSaveConfig := MyGui.Add("Button", "x101 y518 w86 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x101 y548 w86 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", MinimizeAndRun(SaveConfig))
-btnHelp := MyGui.Add("Button", "x192 y518 w86 h30", "使用说明")
+btnHelp := MyGui.Add("Button", "x192 y548 w86 h30", "使用说明")
 btnHelp.OnEvent("Click", ToggleHelp)
-btnExit := MyGui.Add("Button", "x283 y518 w86 h30", "退出")
+btnExit := MyGui.Add("Button", "x283 y548 w86 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 ; 使用说明面板（窗口右侧，平时藏着，点「使用说明」才展开显示）。
-txtHelp := MyGui.Add("Edit", "x390 y10 w300 h546 +ReadOnly +Multi +VScroll", HelpText)
+txtHelp := MyGui.Add("Edit", "x390 y10 w300 h576 +ReadOnly +Multi +VScroll", HelpText)
 txtHelp.Visible := false
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -445,7 +446,7 @@ if (DesktopCount < 1) {
 RefreshRecordList()
 RefreshAccountList()
 
-MyGui.Show("w380 h566")
+MyGui.Show("w380 h596")
 
 ; 打开脚本时默认开启功能 3（快捷切换）：和点「开始」按钮走
 ; 同一条路，开启后 2 秒还会把三个桌面的游戏窗口居中。
@@ -1878,12 +1879,13 @@ ReadAccountFile(Name) {
     return [Pwd, Pwd2]
 }
 
-; 保存：账号名取下拉框文字，密码取密码框。
-; 已有账号：密码框留空 = 不改（什么都不做）；填了 = 只改第 1 行，第 2 行以后（二次密码）原样保留。
+; 保存：账号名取下拉框文字，密码和二次密码取下面两个框。
+; 两个框都必须填，缺一个保存不了；填好一次写入：第 1 行密码、第 2 行二次密码。
 SaveAccount(*) {
-    global AccountsDir, cmbAccounts, edtAccPwd, txtAccStatus
+    global AccountsDir, cmbAccounts, edtAccPwd, edtAccPwd2, txtAccStatus
     Name := Trim(cmbAccounts.Text)
     Pwd := edtAccPwd.Value
+    Pwd2 := Trim(edtAccPwd2.Value)
     if (Name = "") {
         MsgBox("先在下拉框里输入账号名，再点保存。", "保存账号", "OK Icon!")
         return
@@ -1892,42 +1894,33 @@ SaveAccount(*) {
         MsgBox("账号名里不能有 \ / : * ? `" < > | 这些字符。", "保存账号", "OK Icon!")
         return
     }
-    Path := AccountsDir "\" Name ".txt"
-    Exists := FileExist(Path)
-    if (Pwd = "") {
-        if (!Exists) {
-            MsgBox("新账号要在下面的密码框里填密码，再点保存。", "保存账号", "OK Icon!")
-        } else {
-            MsgBox("密码框是空的，「" Name "」的密码保持不变。`n想改密码就在密码框里填新密码再点保存。", "保存账号", "OK Icon!")
-        }
+    if (Pwd = "" || Pwd2 = "") {
+        MsgBox("密码和二次密码两个框都要填，缺一个保存不了。", "保存账号", "OK Icon!")
         return
     }
-    Rest := ""
-    if (Exists) {
-        Result := MsgBox("已经有账号「" Name "」了，要用新密码覆盖吗？`n（文件第 2 行以后的内容，比如二次密码，会保留）", "保存账号", "YesNo Icon?")
+    if (!RegExMatch(Pwd2, "^\d+$")) {
+        MsgBox("二次密码只能是数字。", "保存账号", "OK Icon!")
+        return
+    }
+    Path := AccountsDir "\" Name ".txt"
+    if (FileExist(Path)) {
+        Result := MsgBox("已经有账号「" Name "」了，要用这两个框里的密码和二次密码覆盖吗？", "保存账号", "YesNo Icon?")
         if (Result = "No") {
             return
-        }
-        try {
-            Lines := StrSplit(FileRead(Path, "UTF-8"), "`n", "`r")
-            Loop Lines.Length - 1 {
-                Rest .= "`n" Lines[A_Index + 1]
-            }
-        } catch {
-            Rest := ""
         }
     }
     try {
         DirCreate(AccountsDir)
-        if (Exists) {
+        if (FileExist(Path)) {
             FileDelete(Path)
         }
-        FileAppend(Pwd . Rest, Path, "UTF-8-RAW")
+        FileAppend(Pwd . "`n" . Pwd2, Path, "UTF-8-RAW")
     } catch as Err {
         MsgBox("保存失败：" Err.Message, "保存账号", "OK Icon!")
         return
     }
     edtAccPwd.Value := ""
+    edtAccPwd2.Value := ""
     RefreshAccountList()
     cmbAccounts.Text := Name
     txtAccStatus.Text := "状态：已保存账号「" Name "」"
