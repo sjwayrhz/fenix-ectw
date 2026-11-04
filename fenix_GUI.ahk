@@ -2076,7 +2076,6 @@ LoginSleep(Ms) {
 LoginStatus(Msg) {
     global txtAccStatus
     txtAccStatus.Text := "状态：" Msg
-    ToolTip("账号登陆：" Msg "（Esc 取消）")
 }
 
 ; 点一个位置：先移过去稍停一下再点，点完也留一点间隔给客户端反应。
