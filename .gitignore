@@ -1,3 +1,5 @@
 # 本地配置和日志，不进仓库
 fenix_Config.ini
 fenix_Find_Log.txt
+# 账号文件（含密码），只留本地
+accounts/
