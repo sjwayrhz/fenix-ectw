@@ -2029,25 +2029,25 @@ LoginStatus(Msg) {
     ToolTip("账号登陆：" Msg "（Esc 取消）")
 }
 
-; 点一个位置：先移过去停一下再点，间隔给客户端反应时间。
+; 点一个位置：先移过去稍停一下再点，点完也留一点间隔给客户端反应。
 LoginClick(X, Y) {
     MouseMove(X, Y, 0)
-    LoginSleep(150)
+    LoginSleep(80)
     Click()
-    LoginSleep(200)
+    LoginSleep(120)
 }
 
 ; 清空输入框里已有的内容（点进框后，光标到末尾再连按退格）。
 LoginClearField() {
-    SendEvent("{End}{BackSpace 24}")
+    Send("{End}{BackSpace 24}")
     LoginSleep(150)
 }
 
-; 逐个字符敲进去（{Text} 模式：特殊字符按字面输入；每个键之间有间隔）。
+; 整串一次输进去（SendText 是 {Text} 模式：特殊字符按字面输入），不逐字敲
+; ——逐字加间隔那套慢好几秒，这个客户端整串输没丢过字。
 LoginType(Str) {
-    Loop Parse, Str {
-        SendEvent("{Text}" A_LoopField)
-        LoginSleep(60)
+    if (Str != "") {
+        SendText(Str)
     }
 }
 
@@ -2089,7 +2089,6 @@ LoginFindWait(Text, &CX, &CY, TimeoutMs, E1 := "", E0 := "") {
 DoLogin(Name, Pwd, Pwd2) {
     global PinHuntNote
     LogFind("login: start account=" Name " hasSecondPwd=" (Pwd2 != "" ? "yes" : "no"))
-    SetKeyDelay(40, 30)
 
     ; 1. 激活客户端窗口（先按标题 + DLL 找当前桌面的那个，不行再按标题找任意一个）
     LoginStatus("激活客户端…")
@@ -2101,7 +2100,7 @@ DoLogin(Name, Pwd, Pwd2) {
         WinActivate("ahk_id " hWnd)
         SaveGameWinRect(hWnd)
     }
-    LoginSleep(800)
+    LoginSleep(300)
 
     ; 2. 找 Login 按钮（界面是否到了登陆画面）
     LoginStatus("查找登陆界面…")
@@ -2114,15 +2113,15 @@ DoLogin(Name, Pwd, Pwd2) {
     ; 3. 输账号、Tab、输密码、点 Login（每步之间留间隔，防止客户端反应不过来）
     LoginStatus("输入账号和密码…")
     LoginClick(BX + LoginAccountDX, BY + LoginAccountDY)
-    LoginSleep(400)
+    LoginSleep(200)
     LoginClearField()
     LoginType(Name)
-    LoginSleep(500)
-    SendEvent("{Tab}")
-    LoginSleep(500)
+    LoginSleep(250)
+    Send("{Tab}")
+    LoginSleep(250)
     LoginClearField()
     LoginType(Pwd)
-    LoginSleep(800)
+    LoginSleep(400)
     LoginStatus("点击 Login…")
     LoginClick(BX, BY)
 
