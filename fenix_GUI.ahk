@@ -2053,6 +2053,8 @@ LoginAccount(*) {
         MsgBox(Failed, "账号登陆", "OK Icon!")
     } else if (Aborted) {
         txtAccStatus.Text := "状态：登陆已取消"
+    } else {
+        txtAccStatus.Text := "状态：未登陆"
     }
 }
 
@@ -2135,7 +2137,6 @@ LoginFindWait(Text, &CX, &CY, TimeoutMs, E1 := "", E0 := "") {
 
 ; 登陆主流程。出错抛 Error（消息就是弹给用户看的原因）。
 DoLogin(Name, Pwd, Pwd2) {
-    global PinHuntNote
     LogFind("login: start account=" Name " hasSecondPwd=" (Pwd2 != "" ? "yes" : "no"))
 
     ; 1. 激活客户端窗口（先按标题 + DLL 找当前桌面的那个，不行再按标题找任意一个）
@@ -2173,59 +2174,29 @@ DoLogin(Name, Pwd, Pwd2) {
     LoginStatus("点击 Login…")
     LoginClick(BX, BY)
 
-    ; 4. 等后续界面：二次密码键盘 / 登陆确认对话框（也可能都没有，先后不定）。
-    ; 键盘优先处理；点「是」不算登陆完成——以最后一个界面处理完、之后安静 8 秒为准
-    ; （实测「是」可能比键盘先出现，点完就收工会把没输的二次密码落下）。
-    LoginStatus("等待登陆结果…")
+    ; 4. 等后续界面：有二次密码就先输二次密码；出现登陆确认对话框就点「是」，
+    ; 点完本次运行就结束——不检测登陆状态、不报结果。
+    ; 30 秒内什么都没等到也直接结束（一样不判断、不显示）。
     Start := A_TickCount
-    LastAction := 0
     PinDone := (Pwd2 = "")
-    YesDone := false
     Loop {
-        LoginSleep(1)
-        Now := A_TickCount
-        if ((PinDone || YesDone) && LastAction && Now - LastAction >= 8000) {
-            LogFind("login: complete (pin=" PinDone ", yes=" YesDone ")")
-            LoginStatus("登陆完成")
-            ToolTip()
-            ShowTempToolTip("登陆完成")
+        if (A_TickCount - Start >= 30000) {
+            LogFind("login: nothing appeared within 30s, stop")
             return
-        }
-        if (Now - Start >= 30000) {
-            break
         }
         if (!PinDone && TryEnterSecondPassword(Name, Pwd2)) {
             PinDone := true
-            LastAction := A_TickCount
             continue
         }
         LoginRegion(&X1, &Y1, &X2, &Y2)
         if (FindPattern(ConfirmYesText, X1, Y1, X2, Y2, &YX, &YY)) {
-            LogFind("login: confirm 'yes' at (" YX "," YY ")")
+            LogFind("login: confirm 'yes' at (" YX "," YY "), clicked, done")
             LoginStatus("确认登陆…")
             LoginSleep(300)
             LoginClick(YX, YY)
-            YesDone := true
-            LastAction := A_TickCount
-            continue
+            return
         }
         LoginSleep(300)
-    }
-    if (PinDone && Pwd2 != "") {
-        LoginStatus("二次密码已输入，没出现登陆确认")
-        LogFind("login: second password done but no confirm dialog")
-        ToolTip()
-        ShowTempToolTip("二次密码已输入，但没等到登陆确认对话框")
-    } else if (!PinDone && Pwd2 != "") {
-        LoginStatus("没等到可用的二次密码键盘")
-        LogFind("login: pin keypad not found, hunt: " PinHuntNote)
-        ToolTip()
-        ShowTempToolTip("没等到可用的二次密码键盘（细节在 fenix_Find_Log.txt 里）")
-    } else {
-        LoginStatus("没出现二次密码或登陆确认")
-        LogFind("login: no second password / confirm dialog within time")
-        ToolTip()
-        ShowTempToolTip("没等到二次密码或登陆确认界面（可能已直接进入，或账号密码有误）")
     }
 }
 
