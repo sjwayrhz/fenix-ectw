@@ -202,13 +202,12 @@ ProjectorTextOld := "|<projector>*68$45.Tzzzzzzv0000003Hzzzzzz+TzzzzzxLzwLzzzezz
 ; 第 2 行（可选，手动添加）= 二次密码（数字）。
 AccountsDir := A_ScriptDir "\accounts"
 LoginRunning := false     ; 登陆流程是否在进行（Esc / 其他功能启动 / 全部停止 会把它置 false，流程在下一个等待点退出）
-; 下面的图案都是用 FindText 的格式、从你发的 1.jpg~4.jpg 裁出来的（灰度阈值法，1 = 暗点）。
-; 游戏里的实际显示和截图不一样（缩放、画质）导致认不出来时，用 FindText 自带的截图工具
-; 重新截一张，把生成的字符串替换到对应变量里即可；每次找图的结果都会写进 fenix_Find_Log.txt。
+; 图案分工：Login / 输入 / 是 用 FindText 图案（从 1.jpg、3.jpg、4.jpg 裁的，灰度阈值法，1 = 暗点）；
+; 二次密码键盘不用任何“招牌”图案当锚点——黄色“2级密码”字样在她屏幕上有多处假匹配（实测栽过），
+; 改成直接找数字候选、再整盘逐格验证（见 HuntPinKeypad / ValidatePinGrid）。
+; 找图和验证的结果都会写进 fenix_Find_Log.txt。
 ; Login 按钮上的 "Login" 字样（1.jpg）
 LoginBtnText := "|<Login>*150$39.zzzzzzzzzzzzzzzzzzzzTzzzTztzzzlzzDzzzzztz7UTzzDUM2M7twlCH4zDb9mNrtwtCHCzDb9mNrtwnUHCz0svnNrzzzAzzzzzyDzzzzzzzzzzzzzzzzzzzzzw"
-; 二次密码界面的黄色 "2级密码" 字样（2.jpg）
-SecLabelText := "|<Label>*130$46.zzzzzzzzzzzzzzzzzjzxzs7sSUM08TTSrRiyvRzuprxThrzcqxPRrTxvMpOl0zDRus+LvvsHiTxTjTzJzTo2w3XjRr7vzthRrRTjzxik1ztzzzzzzzzzzzzzzzy"
 ; 二次密码界面里变亮的 "输入" 按钮字样（3.jpg）
 SecEnterText := "|<Enter>*160$31.zzzzzzzzzzzzzzzznbszztVzDzk6TnzwU7tzwDzsTy0NwDzk0y7zs0SNzk0DAzy07DDz0nDnzUFDwzzzzzzzzzzzzzzzzU"
 ; 登陆确认对话框里的 "是"（4.jpg）
@@ -228,17 +227,38 @@ DigitText := Map(
     "8", "|<D8>*160$11.zzzzzz1wttnnbbDUyQwttnnbbDUzzs",
     "9", "|<D9>*160$11.zzzzzz1wttnnbbDCT0ztznnbbDUzzs"
 )
-; 数字键之间长得很像（比如 8 和 6 只差几个点），所以容错要很小：
-; 1 的点（暗的背景）只允许错约 1 个点，0 的点（数字笔画）允许错 4%。
-DigitErr1 := 0.01
-DigitErr0 := 0.04
+; 上面的数字图案在这里只当“候选线索”用：容错故意放宽（漏掉真数字比多几个假候选严重），
+; 候选算不算数由后面的整盘格子验证说了算（见 ValidatePinGrid），不在这一步卡。
+PinCandErr1 := 0.06
+PinCandErr0 := 0.15
 ; 以 FindText 找到的图案中心为基准的偏移（按截图量出来的）
 LoginAccountDX := 0       ; Login 按钮 -> 账号输入框
 LoginAccountDY := -139
-SecBoxDX := -68           ; "2级密码" 字样 -> 二次密码输入框
-SecBoxDY := 0
-SecEnterDX := -72         ; "2级密码" 字样 -> "输入" 按钮（找不到变亮的字样时按这个偏移硬点）
-SecEnterDY := 84
+; 二次密码键盘的几何（格子中心之间横竖都是 36；量自 2.jpg 并在她机器的实屏采样上核对过）：
+PinCandOff := [1, 2]      ; 候选图案中心 -> 它所在格子的中心
+; 10 个格子的中心相对第 1 格中心的偏移（行优先，第 4 行只有 1 格）
+PinCellOff := [[0, 0], [36, 0], [72, 0], [0, 36], [36, 36], [72, 36], [0, 72], [36, 72], [72, 72], [0, 108]]
+PinBoxOff := [161, 25]    ; 第 1 格中心 -> 二次密码输入框中心
+PinEnterOff := [159, 107] ; 第 1 格中心 -> “输入”按钮中心
+; 格子验证的门槛（她机器实测：真格子距离 0，密码数字和第二名的差距 11~27，门槛取在中间）
+PinMaxDist := 5           ; 一个格子离它认出的数字模板最多差几个点
+PinMinMargin := 5         ; 密码用到的数字和第二像的数字至少拉开几个点
+PinHuntNote := ""         ; 最近一次找键盘的小结（候选数等），登陆失败时写进日志备查
+; 数字验证模板：从她逐个截的数字图按灰度 >120 二值化、裁到字形边界生成（2026-11-04）。
+; 每行一个整数：第 c 位（1<<c）对应字形第 c 列（左到右），1 = 亮点。
+; 已和她机器的实屏采样逐格验过：10 个格子全是距离 0 命中。
+PinTpl := Map(
+    "0", {W: 7, H: 12, Rows: [62, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 62]},
+    "1", {W: 4, H: 12, Rows: [12, 15, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12]},
+    "2", {W: 7, H: 12, Rows: [62, 99, 99, 96, 96, 48, 24, 12, 6, 3, 3, 127]},
+    "3", {W: 7, H: 12, Rows: [62, 99, 99, 96, 96, 126, 96, 96, 96, 99, 99, 62]},
+    "4", {W: 8, H: 12, Rows: [112, 120, 120, 124, 108, 102, 102, 99, 99, 255, 96, 96]},
+    "5", {W: 7, H: 12, Rows: [127, 3, 3, 3, 63, 99, 96, 96, 96, 99, 99, 62]},
+    "6", {W: 7, H: 12, Rows: [62, 99, 99, 3, 3, 63, 99, 99, 99, 99, 99, 62]},
+    "7", {W: 7, H: 12, Rows: [127, 96, 96, 48, 48, 24, 24, 12, 12, 12, 12, 12]},
+    "8", {W: 7, H: 12, Rows: [62, 99, 99, 99, 99, 127, 99, 99, 99, 99, 99, 62]},
+    "9", {W: 7, H: 12, Rows: [62, 99, 99, 99, 99, 99, 126, 96, 96, 99, 99, 62]}
+)
 
 ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键（抽奖），"two" = 仅两点点击（合成）
 LastClickMode := "" ; F12 启动时用上次点过的开箱子模式；刚打开脚本还没点过模式按钮时为空，F12 按了没反应（第一次必须先点按钮）。只记本次运行，不存配置，关掉脚本就没了
@@ -2085,6 +2105,7 @@ LoginFindWait(Text, &CX, &CY, TimeoutMs, E1 := "", E0 := "") {
 
 ; 登陆主流程。出错抛 Error（消息就是弹给用户看的原因）。
 DoLogin(Name, Pwd, Pwd2) {
+    global PinHuntNote
     LogFind("login: start account=" Name " hasSecondPwd=" (Pwd2 != "" ? "yes" : "no"))
     SetKeyDelay(40, 30)
 
@@ -2123,42 +2144,54 @@ DoLogin(Name, Pwd, Pwd2) {
     LoginStatus("点击 Login…")
     LoginClick(BX, BY)
 
-    ; 4. 等后续界面：二次密码界面 / 登陆确认对话框（也可能都没有）
+    ; 4. 等后续界面：二次密码键盘 / 登陆确认对话框（也可能都没有，先后不定）。
+    ; 键盘优先处理；点「是」不算登陆完成——以最后一个界面处理完、之后安静 8 秒为准
+    ; （实测「是」可能比键盘先出现，点完就收工会把没输的二次密码落下）。
     LoginStatus("等待登陆结果…")
     Start := A_TickCount
-    Limit := 20000
-    SecDone := false
+    LastAction := 0
+    PinDone := (Pwd2 = "")
+    YesDone := false
     Loop {
         LoginSleep(1)
+        Now := A_TickCount
+        if ((PinDone || YesDone) && LastAction && Now - LastAction >= 8000) {
+            LogFind("login: complete (pin=" PinDone ", yes=" YesDone ")")
+            LoginStatus("登陆完成")
+            ToolTip()
+            ShowTempToolTip("登陆完成")
+            return
+        }
+        if (Now - Start >= 30000) {
+            break
+        }
+        if (!PinDone && TryEnterSecondPassword(Name, Pwd2)) {
+            PinDone := true
+            LastAction := A_TickCount
+            continue
+        }
         LoginRegion(&X1, &Y1, &X2, &Y2)
         if (FindPattern(ConfirmYesText, X1, Y1, X2, Y2, &YX, &YY)) {
             LogFind("login: confirm 'yes' at (" YX "," YY ")")
             LoginStatus("确认登陆…")
             LoginSleep(300)
             LoginClick(YX, YY)
-            LoginStatus("登陆完成")
-            ToolTip()
-            ShowTempToolTip("登陆完成")
-            return
-        }
-        if (!SecDone && FindPattern(SecLabelText, X1, Y1, X2, Y2, &LX, &LY)) {
-            LogFind("login: second password screen, label at (" LX "," LY ")")
-            LoginSecondPassword(Name, Pwd2, LX, LY)
-            SecDone := true
-            Start := A_TickCount   ; 二次密码输完后，再等 10 秒让登陆确认出现
-            Limit := 10000
+            YesDone := true
+            LastAction := A_TickCount
             continue
-        }
-        if (A_TickCount - Start >= Limit) {
-            break
         }
         LoginSleep(300)
     }
-    if (SecDone) {
+    if (PinDone && Pwd2 != "") {
         LoginStatus("二次密码已输入，没出现登陆确认")
         LogFind("login: second password done but no confirm dialog")
         ToolTip()
         ShowTempToolTip("二次密码已输入，但没等到登陆确认对话框")
+    } else if (!PinDone && Pwd2 != "") {
+        LoginStatus("没等到可用的二次密码键盘")
+        LogFind("login: pin keypad never validated, hunt: " PinHuntNote)
+        ToolTip()
+        ShowTempToolTip("没等到可用的二次密码键盘（细节在 fenix_Find_Log.txt 里）")
     } else {
         LoginStatus("没出现二次密码或登陆确认")
         LogFind("login: no second password / confirm dialog within time")
@@ -2167,72 +2200,288 @@ DoLogin(Name, Pwd, Pwd2) {
     }
 }
 
-; 二次密码：点密码框 -> 逐个识别数字键 -> 按二次密码依次点数字 -> 等“输入”变亮 -> 点它。
-; LX/LY 是“2级密码”字样的中心，键盘和输入按钮的位置都按它来定。
-LoginSecondPassword(Name, Pwd2, LX, LY) {
-    global DigitText, DigitErr1, DigitErr0, SecBoxDX, SecBoxDY, SecEnterDX, SecEnterDY, SecEnterText
-    if (Pwd2 = "") {
-        throw Error("出现了二次密码界面，但 accounts\" Name ".txt 里没有二次密码。`n"
-            . "请用记事本打开这个文件，在第 2 行写上二次密码（数字），保存后再登陆。")
-    }
+; 二次密码（不用黄字锚点）：先把鼠标挪开，再用 DigitText 图案在游戏窗口里撒网找
+; 密码数字的候选位置；每个候选按键盘格距（36x36）推出整盘 10 个格子，逐格采样、
+; 用 PinTpl 模板逐点验证——10 格个个认得出、互不重复、密码数字和第二像的拉开差距，
+; 全过才点，一个验不过就一个都不点。找键盘和验证的细节都写进 fenix_Find_Log.txt。
+; 返回 true = 已输完二次密码并点了“输入”；false = 这一轮没找到能通过验证的键盘。
+TryEnterSecondPassword(Name, Pwd2) {
+    global SecEnterText, PinBoxOff, PinEnterOff
     if (!RegExMatch(Pwd2, "^\d+$")) {
         throw Error("accounts\" Name ".txt 第 2 行的二次密码只能是数字。")
     }
-    LoginStatus("输入二次密码…")
-    LoginSleep(600)
-    ; 先点右边的长方形密码框
-    LoginClick(LX + SecBoxDX, LY + SecBoxDY)
-    LoginSleep(400)
-
-    ; 逐个识别用得到的数字键（数字随机排列，每个数字用自己的图案找；
-    ; 先全找到位置再点，点之前鼠标不在键盘上，不会因为悬停变色认不出）。
     Need := Map()
     Loop Parse, Pwd2 {
         Need[A_LoopField] := true
     }
-    Pos := Map()
-    Loop 10 {
-        for D, _ in Need {
-            if (Pos.Has(D)) {
-                continue
-            }
-            if (FindPattern(DigitText[D], LX - 260, LY - 60, LX - 110, LY + 120, &CX, &CY, DigitErr1, DigitErr0)) {
-                Pos[D] := [CX, CY]
-                LogFind("login: digit " D " at (" CX "," CY ")")
-            }
-        }
-        if (Pos.Count = Need.Count) {
-            break
-        }
-        LoginSleep(300)
+    ; 鼠标先停到左上方黄金点，别悬停在键盘上把格子弄变色、影响采样
+    MouseMove(Round(A_ScreenWidth * 0.382), 200, 0)
+    if (!HuntPinKeypad(Need, &Cells, &C1X, &C1Y)) {
+        return false
     }
-    if (Pos.Count < Need.Count) {
-        Missing := ""
-        for D, _ in Need {
-            if (!Pos.Has(D)) {
-                Missing .= D " "
-            }
-        }
-        LogFind("login: digits NOT found: " Missing)
-        throw Error("数字键盘上没认出这些数字：" Missing "`n"
-            . "可能是游戏里的显示和截图不一样；请用 FindText 重新截这几个数字键，替换脚本里 DigitText 里对应的图案。")
-    }
-
-    ; 按二次密码的顺序依次点数字
+    LoginStatus("输入二次密码…")
+    LoginSleep(300)
+    ; 先点右边的长方形密码框，再按二次密码的顺序点数字
+    LoginClick(C1X + PinBoxOff[1], C1Y + PinBoxOff[2])
+    LoginSleep(400)
     Loop Parse, Pwd2 {
-        LoginClick(Pos[A_LoopField][1], Pos[A_LoopField][2])
+        P := Cells[A_LoopField]
+        LoginClick(P[1], P[2])
         LoginSleep(250)
     }
-
-    ; 输完后“输入”按钮会变亮，等它亮了再点；一直没亮就按偏移硬点一下。
+    ; 输完后“输入”按钮会变亮，在它该在的位置附近等它亮；一直没亮就按位置点一下
     LoginStatus("点击“输入”…")
-    if (LoginFindWait(SecEnterText, &EX, &EY, 4000)) {
-        LogFind("login: bright 'enter' at (" EX "," EY ")")
-        LoginClick(EX, EY)
+    EX := C1X + PinEnterOff[1]
+    EY := C1Y + PinEnterOff[2]
+    if (FindWaitInRect(SecEnterText, &FX, &FY, EX - 80, EY - 45, EX + 80, EY + 45, 4000)) {
+        LogFind("login: bright 'enter' at (" FX "," FY ")")
+        LoginClick(FX, FY)
     } else {
-        LogFind("login: bright 'enter' NOT found, click by offset")
-        LoginClick(LX + SecEnterDX, LY + SecEnterDY)
+        LogFind("login: bright 'enter' NOT found, click by grid offset")
+        LoginClick(EX, EY)
     }
+    return true
+}
+
+; 在指定矩形里等一个图案出现（登陆流程专用，等待可被 Esc 中断）。
+FindWaitInRect(Text, &CX, &CY, X1, Y1, X2, Y2, TimeoutMs) {
+    Start := A_TickCount
+    Loop {
+        if (FindPattern(Text, X1, Y1, X2, Y2, &CX, &CY)) {
+            return true
+        }
+        if (A_TickCount - Start >= TimeoutMs) {
+            return false
+        }
+        LoginSleep(200)
+    }
+}
+
+; 找二次密码键盘：收集候选 -> 逐个候选、逐个格位推整盘验证。
+; 成功时 Cells 是 数字->[点击X, 点击Y]（按字形中心修正过），C1X/C1Y 是第 1 格的字形中心。
+HuntPinKeypad(Need, &Cells, &C1X, &C1Y) {
+    global DigitText, PinCandErr1, PinCandErr0, PinCandOff, PinCellOff, PinHuntNote
+    LoginRegion(&X1, &Y1, &X2, &Y2)
+    Cands := []
+    for D, _ in Need {
+        FX := 0
+        FY := 0
+        Matches := ""
+        try Matches := FindText(&FX, &FY, X1, Y1, X2, Y2, PinCandErr1, PinCandErr0, DigitText[D])
+        if (IsObject(Matches)) {
+            for _, M in Matches {
+                Cands.Push([D, M.mx + PinCandOff[1], M.my + PinCandOff[2]])
+            }
+        }
+    }
+    LogFind("login: pin hunt candidates=" Cands.Length)
+    PinHuntNote := "候选 " Cands.Length " 个"
+    Tried := []
+    for _, C in Cands {
+        if (Tried.Length >= 60) {
+            break
+        }
+        Dup := false
+        for _, T in Tried {
+            if (Abs(T[1] - C[2]) <= 6 && Abs(T[2] - C[3]) <= 6) {
+                Dup := true
+                break
+            }
+        }
+        if (Dup) {
+            continue
+        }
+        Tried.Push([C[2], C[3]])
+        FirstCand := (Tried.Length = 1)
+        Loop 10 {
+            K := A_Index - 1
+            OX := C[2] - PinCellOff[K + 1][1]
+            OY := C[3] - PinCellOff[K + 1][2]
+            if (OX < 10 || OY < 14 || OX + 92 > A_ScreenWidth || OY + 122 > A_ScreenHeight) {
+                continue
+            }
+            if (ValidatePinGrid(OX, OY, K, Need, &Cells, &C1X, &C1Y, &Why)) {
+                LogFind("login: pin keypad OK, cand " C[1] " at (" C[2] "," C[3] ") as cell " (K + 1) ", origin=(" OX "," OY ")")
+                return true
+            }
+            if (FirstCand) {
+                LogFind("login: cand " C[1] " as cell " (K + 1) " rejected: " Why)
+            }
+        }
+    }
+    return false
+}
+
+; 验证一整盘键盘：OX/OY 是第 1 格中心，FirstCell 先验（假候选死得最快）。
+; 10 格逐个采样分类：距离 <= PinMaxDist、不重复；密码用到的数字还要和第二像的拉开 >= PinMinMargin。
+ValidatePinGrid(OX, OY, FirstCell, Need, &Cells, &C1X, &C1Y, &Why) {
+    global PinCellOff, PinMaxDist, PinMinMargin
+    Order := [FirstCell]
+    Loop 10 {
+        if (A_Index - 1 != FirstCell) {
+            Order.Push(A_Index - 1)
+        }
+    }
+    Cells := Map()
+    Margins := Map()
+    Used := Map()
+    C1X := 0
+    C1Y := 0
+    Why := ""
+    for _, K in Order {
+        CX := OX + PinCellOff[K + 1][1]
+        CY := OY + PinCellOff[K + 1][2]
+        R := PinClassifyCell(SamplePinCell(CX, CY))
+        if (R = "") {
+            Why := "cell " (K + 1) " empty"
+            return false
+        }
+        if (R.D1 > PinMaxDist) {
+            Why := "cell " (K + 1) " dist " R.D1
+            return false
+        }
+        if (Used.Has(R.Digit)) {
+            Why := "cell " (K + 1) " dup " R.Digit
+            return false
+        }
+        Used[R.Digit] := true
+        Cells[R.Digit] := [CX + R.GX, CY + R.GY]
+        Margins[R.Digit] := R.D2 - R.D1
+        if (K = 0) {
+            C1X := CX + R.GX
+            C1Y := CY + R.GY
+        }
+    }
+    for D, _ in Need {
+        if (!Cells.Has(D)) {
+            Why := "pin digit " D " missing"
+            return false
+        }
+        if (Margins[D] < PinMinMargin) {
+            Why := "pin digit " D " margin " Margins[D]
+            return false
+        }
+    }
+    return true
+}
+
+; 采样一个数字格：以格子中心为中点，21 宽 x 29 高逐点采样灰度
+; （公式和 FindText 一样，>120 算亮点），返回 29 个整数（每行一个，
+; 第 (DX+10) 位对应横偏移 DX 的那个点）。采样范围比字形大一圈，是为了
+; 留出平移余量。用整数位运算不用字符串——字符串逐字比一轮要 26 秒（实测教训）。
+SamplePinCell(CX, CY) {
+    Rows := []
+    Loop 29 {
+        DY := A_Index - 15
+        RowVal := 0
+        Loop 21 {
+            DX := A_Index - 11
+            C := PixelGetColor(CX + DX, CY + DY)
+            R := (C >> 16) & 0xFF
+            G := (C >> 8) & 0xFF
+            B := C & 0xFF
+            if ((R * 38 + G * 75 + B * 15) >> 7 > 120) {
+                RowVal += (1 << (DX + 10))
+            }
+        }
+        Rows.Push(RowVal)
+    }
+    return Rows
+}
+
+; 给一个采样格子分类：先裁到亮点的边界，再和 10 个模板逐个比（±2 平移取最小距离）。
+; 返回 {Digit, D1, D2, GX, GY}：D1/D2 是离最近/第二近模板的距离，
+; GX/GY 是字形中心相对格子中心的偏移（点的时候按这个修正）；没有亮点返回 ""。
+PinClassifyCell(Rows) {
+    global PinTpl
+    Y0 := -1
+    Y1 := -1
+    Loop 29 {
+        if (Rows[A_Index] != 0) {
+            if (Y0 < 0) {
+                Y0 := A_Index - 1
+            }
+            Y1 := A_Index - 1
+        }
+    }
+    if (Y0 < 0) {
+        return ""
+    }
+    ORV := 0
+    Loop (Y1 - Y0 + 1) {
+        ORV |= Rows[Y0 + A_Index]
+    }
+    X0 := 0
+    Loop 21 {
+        if ((ORV >> (A_Index - 1)) & 1) {
+            X0 := A_Index - 1
+            break
+        }
+    }
+    X1 := 0
+    Loop 21 {
+        B := 21 - A_Index
+        if ((ORV >> B) & 1) {
+            X1 := B
+            break
+        }
+    }
+    SW := X1 - X0 + 1
+    SH := Y1 - Y0 + 1
+    SRows := []
+    Loop SH {
+        SRows.Push((Rows[Y0 + A_Index] >> X0) & ((1 << SW) - 1))
+    }
+    BestD := ""
+    D1 := 100000
+    D2 := 100000
+    for Dg, Tpl in PinTpl {
+        Dist := PinDistTrim(SRows, SW, SH, Tpl)
+        if (Dist < D1) {
+            D2 := D1
+            D1 := Dist
+            BestD := Dg
+        } else if (Dist < D2) {
+            D2 := Dist
+        }
+    }
+    return {Digit: BestD, D1: D1, D2: D2, GX: (X0 + X1) // 2 - 10, GY: (Y0 + Y1) // 2 - 14}
+}
+
+; 裁剪后的采样和一个模板的距离：在 ±2 平移范围内把两者放进并集框逐点异或数差点，取最小。
+PinDistTrim(SRows, SW, SH, Tpl) {
+    TW := Tpl.W
+    TH := Tpl.H
+    TRows := Tpl.Rows
+    Best := 100000
+    Loop 5 {
+        DY := A_Index - 3
+        Loop 5 {
+            DX := A_Index - 3
+            UX0 := Min(0, DX)
+            UY0 := Min(0, DY)
+            URows := Max(SH, DY + TH) - UY0
+            Dist := 0
+            Loop URows {
+                UY := UY0 + A_Index - 1
+                SV := (UY >= 0 && UY < SH) ? SRows[UY + 1] : 0
+                TY := UY - DY
+                TV := (TY >= 0 && TY < TH) ? TRows[TY + 1] : 0
+                V := (SV << (0 - UX0)) ^ (TV << (DX - UX0))
+                while (V) {
+                    V &= V - 1
+                    Dist++
+                }
+                if (Dist >= Best) {
+                    break
+                }
+            }
+            if (Dist < Best) {
+                Best := Dist
+            }
+        }
+    }
+    return Best
 }
 
 ; ===== 快捷键 =====
