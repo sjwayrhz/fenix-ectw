@@ -212,6 +212,12 @@ LoginBtnText := "|<Login>*150$39.zzzzzzzzzzzzzzzzzzzzTzzzTztzzzlzzDzzzzztz7UTzzD
 SecEnterText := "|<Enter>*160$31.zzzzzzzzzzzzzzzznbszztVzDzk6TnzwU7tzwDzsTy0NwDzk0y7zs0SNzk0DAzy07DDz0nDnzUFDwzzzzzzzzzzzzzzzzU"
 ; 登陆确认对话框里的 "是"（4.jpg）
 ConfirmYesText := "|<Yes>*150$17.zzzzzzzzzk7zjjz0Tyyzw1zzzz01zxzzMDyrzujzi0zzzzzzzzzU"
+; 英文客户端确认对话框里的 "Yes"（image-25）；确认那一步两个图案都找，哪个先找到点哪个
+ConfirmYesENText := "|<YesEN>*150$24.zzzzzzzzzzzzxrzzxrzzyiCDyhpzzQ4zzRzDzRrjzSATzzzzzzzzzzzzU"
+; 英文客户端“输入”按钮未点亮时的 "Enter" 字样（image-24，阈值 70——字是灰的、按钮面是暗的，
+; 阈值得压低才分得开）。只用来在点数字之前辨认是不是英文客户端：输完密码按钮会点亮、
+; 字样变色，这个图案就找不到了。英文版没有点亮图案可等，输完直接按位置点 Enter。
+SecEnterENText := "|<EnterEN>*70$39.zzzzzzzzzzzzzzzzzzzzzzzzzzy3zDzzznztzzzyS333/zkH9n8TySNC1Dznn9ntzySNCTDzkHAM9zzzzzzzzzzzzzzzzzzzzzzzzzzzU"
 ; 数字键盘上的每个数字：图案直接从她逐个截下来的数字图（十张小图，依次是 1 到 9、0）
 ; 按原图大小生成，一个合成像素都没加；阈值 160 和图案写在一起。
 ; 数字随机排列，所以每个数字单独认；认的时候只找密码里用到的那几个。
@@ -246,6 +252,8 @@ PinDigitOff := Map(
 PinCellOff := [[0, 0], [36, 0], [72, 0], [0, 36], [36, 36], [72, 36], [0, 72], [36, 72], [72, 72], [0, 108]]
 PinBoxOff := [161, 25]    ; 第 1 格中心 -> 二次密码输入框中心
 PinEnterOff := [159, 107] ; 第 1 格中心 -> “输入”按钮中心
+PinBoxOffEN := [146, 26]   ; 英文版：第 1 格中心 -> 二次密码输入框中心（量自 image-24）
+PinEnterOffEN := [143, 108] ; 英文版：第 1 格中心 -> “Enter”按钮中心（量自 image-24）
 PinHuntNote := ""         ; 最近一次找键盘的小结（各数字命中数等），登陆失败时写进日志备查
 
 ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键（抽奖），"two" = 仅两点点击（合成）
@@ -2196,6 +2204,13 @@ DoLogin(Name, Pwd, Pwd2) {
             LoginClick(YX, YY)
             return
         }
+        if (FindPattern(ConfirmYesENText, X1, Y1, X2, Y2, &YX, &YY)) {
+            LogFind("login: confirm 'yes' (EN) at (" YX "," YY "), clicked, done")
+            LoginStatus("确认登陆…")
+            LoginSleep(300)
+            LoginClick(YX, YY)
+            return
+        }
         LoginSleep(300)
     }
 }
@@ -2205,7 +2220,7 @@ DoLogin(Name, Pwd, Pwd2) {
 ; （见 HuntPinKeypad）——拼不成盘就一个都不点。细节都写进 fenix_Find_Log.txt。
 ; 返回 true = 已输完二次密码并点了“输入”；false = 这一轮没找到键盘。
 TryEnterSecondPassword(Name, Pwd2) {
-    global SecEnterText, PinBoxOff, PinEnterOff
+    global SecEnterText, PinBoxOff, PinEnterOff, SecEnterENText, PinBoxOffEN, PinEnterOffEN
     if (!RegExMatch(Pwd2, "^\d+$")) {
         throw Error("accounts\" Name ".txt 第 2 行的二次密码只能是数字。")
     }
@@ -2218,15 +2233,30 @@ TryEnterSecondPassword(Name, Pwd2) {
     if (!HuntPinKeypad(Need, &Cells, &C1X, &C1Y)) {
         return false
     }
+    ; 先辨认是不是英文客户端（必须在点数字之前找：输完密码 Enter 会点亮变色，
+    ; 未点亮的灰字图案就找不到了）。找到 Enter 灰字 = 英文版。
+    EEX := C1X + PinEnterOffEN[1]
+    EEY := C1Y + PinEnterOffEN[2]
+    IsEN := FindPattern(SecEnterENText, EEX - 80, EEY - 45, EEX + 80, EEY + 45, &TX, &TY)
+    LogFind("login: client is " (IsEN ? "EN" : "CN"))
+    BoxOff := IsEN ? PinBoxOffEN : PinBoxOff
     LoginStatus("输入二次密码…")
     LoginSleep(300)
     ; 先点右边的长方形密码框，再按二次密码的顺序点数字
-    LoginClick(C1X + PinBoxOff[1], C1Y + PinBoxOff[2])
+    LoginClick(C1X + BoxOff[1], C1Y + BoxOff[2])
     LoginSleep(400)
     Loop Parse, Pwd2 {
         P := Cells[A_LoopField]
         LoginClick(P[1], P[2])
         LoginSleep(250)
+    }
+    if (IsEN) {
+        ; 英文版没有点亮图案可等：等它点亮一会儿，直接按位置点 Enter
+        LoginStatus("点击“Enter”…")
+        LoginSleep(600)
+        LogFind("login: EN client, click 'enter' by grid offset at (" EEX "," EEY ")")
+        LoginClick(EEX, EEY)
+        return true
     }
     ; 输完后“输入”按钮会变亮，在它该在的位置附近等它亮；一直没亮就按位置点一下
     LoginStatus("点击“输入”…")
