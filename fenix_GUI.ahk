@@ -2026,6 +2026,7 @@ StopLogin(*) {
 ; 点“登陆”：读账号文件，停掉其他功能，跑登陆流程，出错弹框说明原因。
 LoginAccount(*) {
     global LoginRunning, cmbAccounts, txtAccStatus
+    global QuickSwitchEnabled, DesktopRunning, TwoRunning, RightRunning
     Name := Trim(cmbAccounts.Text)
     if (Name = "") {
         MsgBox("先在下拉框里选一个账号。", "账号登陆", "OK Icon!")
@@ -2041,6 +2042,8 @@ LoginAccount(*) {
         return
     }
     ; 功能互斥：启动登陆前先停掉其他所有功能（和其他功能一样的规矩）。
+    ; 快捷切换先记下开没开：登陆结束时按原样恢复（2026-11-05 她选的方案）。
+    WasQuickSwitch := QuickSwitchEnabled
     StopDesktopPolling()
     StopClickLoops()
     StopQuickSwitch()
@@ -2064,6 +2067,12 @@ LoginAccount(*) {
         txtAccStatus.Text := "状态：登陆已取消"
     } else {
         txtAccStatus.Text := "状态：未登陆"
+    }
+    ; 登陆前快捷切换是开着的，就自动开回来——省得每次登完再手动重开。
+    ; 登陆期间要是已经手动开回来了、或者已经开起了别的功能，就不重复动。
+    if (WasQuickSwitch && !QuickSwitchEnabled && !DesktopRunning && !TwoRunning && !RightRunning) {
+        LogFind("login: quick switch was on before login, restored")
+        StartQuickSwitch()
     }
 }
 
