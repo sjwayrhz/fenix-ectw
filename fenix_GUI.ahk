@@ -390,7 +390,8 @@ MyGui.Add("Text", "x10 y378 w360 h2 +0x1000")
 ; 选择框只显示账号名（accounts 文件夹里的 .txt 文件名），只能选、不能输。
 ; 新增账号走「新增」按钮弹的对话框（账号、密码、二次密码都在对话框里填）。
 MyGui.Add("Text", "x10 y388 w360", "4. 账号登陆（无快捷键）")
-cmbAccounts := MyGui.Add("DropDownList", "x10 y413 w170", [])
+cmbAccounts := MyGui.Add("DropDownList", "x10 y413 w170 r35", [])
+SendMessage(0x1701, 35, 0, cmbAccounts)  ; CB_SETMINVISIBLE：弹出列表一次显示 35 个（Windows 默认 30）
 btnAddAccount := MyGui.Add("Button", "x190 y413 w55 h30", "新增")
 btnAddAccount.OnEvent("Click", AddAccount)
 btnLogin := MyGui.Add("Button", "x250 y413 w55 h30", "登陆")
