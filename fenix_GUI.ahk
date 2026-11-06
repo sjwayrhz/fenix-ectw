@@ -2197,12 +2197,13 @@ LoginAccount(*) {
         return
     }
     ; 同一个账号不能在两个桌面上重复登陆：选重了就弹窗拦下，不开始。
+    ; Targets 里每条是数组 [桌面号, 账号, 密码, 二次密码]，按位置取。
     Loop Targets.Length {
         I := A_Index
         Loop Targets.Length - I {
             J := I + A_Index
-            if (Targets[I].Name = Targets[J].Name) {
-                MsgBox("桌面" Targets[I].Desk "和桌面" Targets[J].Desk "选了同一个账号「" Targets[I].Name "」，同一个账号不能重复登陆，请改掉一个再点登陆。", "账号登陆", "OK Icon!")
+            if (Targets[I][2] = Targets[J][2]) {
+                MsgBox("桌面" Targets[I][1] "和桌面" Targets[J][1] "选了同一个账号「" Targets[I][2] "」，同一个账号不能重复登陆，请改掉一个再点登陆。", "账号登陆", "OK Icon!")
                 return
             }
         }
