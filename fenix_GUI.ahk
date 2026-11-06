@@ -305,7 +305,7 @@ MyGui.SetFont("s10")
 
 ; 点按钮时先最小化窗口（藏到托盘），再执行按钮原来的功能。
 ; 只包按钮的点击，不包快捷键（按快捷键时不最小化）。
-; 退出、取点（自己会最小化再恢复）、使用说明（要看面板）不用包。
+; 退出、取点（自己会最小化再恢复）、使用说明（要看面板）、更新（要看更新结果那一行）不用包。
 MinimizeAndRun(Func) {
     return (*) => MinimizeThenCall(Func)
 }
@@ -326,6 +326,7 @@ HelpText := "快捷键说明"
     . "`nF5：开始 / 停止录制，回放中按 F5 也立刻停（快捷切换开启时才管用）"
     . "`nEsc：取点时取消；账号登陆进行中按 Esc 取消登陆"
     . "`n功能 4「账号登陆」没有快捷键：下拉框只能选已保存的账号；点「新增」弹对话框，账号、密码、二次密码（只能是数字）都填好点保存，才会存成 accounts 文件夹里的 账号名.txt（第 1 行密码、第 2 行二次密码），不用再去改 txt 文件。点登陆会自动完成输账号密码、二次密码、登陆确认"
+    . "`n底部「更新」按钮（没有快捷键）：点一下就在脚本所在文件夹里执行 git pull，有新版本就自动重启脚本让新代码生效；结果显示在账号登陆下面那一行，几秒后自动消失，不弹框"
 ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
     if (HelpShown) {
@@ -412,17 +413,22 @@ btnLogin := MyGui.Add("Button", "x250 y413 w55 h30", "登陆")
 btnLogin.OnEvent("Click", MinimizeAndRun(LoginAccount))
 btnDeleteAccount := MyGui.Add("Button", "x310 y413 w55 h30", "删除")
 btnDeleteAccount.OnEvent("Click", MinimizeAndRun(DeleteAccount))
-txtAccStatus := MyGui.Add("Text", "x10 y449 w360", "状态：未登陆")
+; 更新结果就显示在这一行（平时空着）：点底部「更新」后显示几秒，然后自动消失。
+; 功能 4 原来的「状态：未登陆」一行 2026-11-06 按她要求去掉，登陆进度改记到日志。
+txtUpdateStatus := MyGui.Add("Text", "x10 y449 w360", "")
 MyGui.Add("Text", "x10 y473 w360 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y483 w86 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y483 w68 h30", "全部停止")
 btnStopAll.OnEvent("Click", MinimizeAndRun(StopAll))
-btnSaveConfig := MyGui.Add("Button", "x101 y483 w86 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x83 y483 w68 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", MinimizeAndRun(SaveConfig))
-btnHelp := MyGui.Add("Button", "x192 y483 w86 h30", "使用说明")
+btnHelp := MyGui.Add("Button", "x156 y483 w68 h30", "使用说明")
 btnHelp.OnEvent("Click", ToggleHelp)
-btnExit := MyGui.Add("Button", "x283 y483 w86 h30", "退出")
+; 「更新」不包 MinimizeAndRun：点了要留在窗口上看更新结果那一行。
+btnUpdate := MyGui.Add("Button", "x229 y483 w68 h30", "更新")
+btnUpdate.OnEvent("Click", CheckForUpdate)
+btnExit := MyGui.Add("Button", "x302 y483 w68 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 ; 使用说明面板（窗口右侧，平时藏着，点「使用说明」才展开显示）。
 txtHelp := MyGui.Add("Edit", "x390 y10 w300 h516 +ReadOnly +Multi +VScroll", HelpText)
@@ -1340,6 +1346,84 @@ SaveConfig(*) {
     MsgBox("配置已保存到：`n" ConfigFile "`n下次打开脚本会自动恢复这些坐标。")
 }
 
+; ===== 检查更新（底部「更新」按钮）=====
+; 在脚本所在文件夹里执行 git pull：有新提交拉下来就自动 Reload，
+; 让新代码立刻生效；已是最新、或者拉取失败，就不重启。
+; 结果不弹框，显示在功能 4 下面那一行（txtUpdateStatus），几秒后自动消失。
+UpdateRunning := false
+
+CheckForUpdate(*) {
+    global UpdateRunning, btnUpdate, txtUpdateStatus
+    if (UpdateRunning) {
+        return
+    }
+    UpdateRunning := true
+    btnUpdate.Enabled := false
+    SetTimer(ClearUpdateStatus, 0)
+    txtUpdateStatus.Text := "正在检查更新…"
+    Before := GitHeadHash()
+    Out := ""
+    Code := RunGit("pull", &Out)
+    After := GitHeadHash()
+    LogFind("update: git pull exit=" Code " head=" Before " -> " After)
+    if (Out != "") {
+        LogFind("update: " Out)
+    }
+    if (Code != 0) {
+        txtUpdateStatus.Text := "更新失败，详情看日志 fenix_Find_Log.txt"
+        SetTimer(ClearUpdateStatus, -6000)
+        btnUpdate.Enabled := true
+        UpdateRunning := false
+        return
+    }
+    if (Before != "" && Before = After) {
+        txtUpdateStatus.Text := "已是最新版本"
+        SetTimer(ClearUpdateStatus, -3000)
+        btnUpdate.Enabled := true
+        UpdateRunning := false
+        return
+    }
+    txtUpdateStatus.Text := "更新成功，正在重启脚本…"
+    Sleep(1500)
+    Reload()
+}
+
+ClearUpdateStatus() {
+    global txtUpdateStatus
+    txtUpdateStatus.Text := ""
+}
+
+; 读当前 HEAD 的提交哈希（读不到返回空：比如脚本文件夹不是 git 仓库）。
+GitHeadHash() {
+    Out := ""
+    if (RunGit("rev-parse HEAD", &Out) != 0) {
+        return ""
+    }
+    if (RegExMatch(Out, "([0-9a-f]{40})", &M) && M[1] != "") {
+        return M[1]
+    }
+    Clean := Trim(StrReplace(StrReplace(Out, "`r", ""), "`n", ""))
+    return StrLen(Clean) = 40 ? Clean : ""
+}
+
+; 在脚本文件夹里跑一条 git 命令：输出（标准输出和错误合在一起）放进 Out，
+; 返回退出码。GIT_TERMINAL_PROMPT=0 让 git 需要交互输入时直接失败，不卡住。
+RunGit(Args, &Out) {
+    Tmp := A_Temp "\fenix_update_git.txt"
+    try FileDelete(Tmp)
+    OldPrompt := EnvGet("GIT_TERMINAL_PROMPT")
+    EnvSet("GIT_TERMINAL_PROMPT", "0")
+    Q := Chr(34)
+    Code := RunWait("cmd /c git " Args " > " Q Tmp Q " 2>&1", A_ScriptDir, "Hide")
+    EnvSet("GIT_TERMINAL_PROMPT", OldPrompt)
+    Out := ""
+    if (FileExist(Tmp)) {
+        try Out := FileRead(Tmp)
+        try FileDelete(Tmp)
+    }
+    return Code
+}
+
 ; F12 用的开关：运行中（无论哪种模式）按 F12 停止；
 ; 未运行时启动上次点过的模式（点哪个按钮启动的就记哪个）。
 ; 刚打开脚本还没点过任何模式按钮时 LastClickMode 为空，
@@ -1903,7 +1987,7 @@ AddEdtPwd2 := ""
 AddSavedName := ""
 
 AddAccount(*) {
-    global MyGui, AddDlg, AddEdtName, AddEdtPwd, AddEdtPwd2, AddSavedName, cmbAccounts, txtAccStatus
+    global MyGui, AddDlg, AddEdtName, AddEdtPwd, AddEdtPwd2, AddSavedName, cmbAccounts
     if (IsObject(AddDlg)) {
         AddDlg.Show()
         return
@@ -1932,7 +2016,7 @@ AddAccount(*) {
     if (AddSavedName != "") {
         RefreshAccountList()
         cmbAccounts.Choose(AddSavedName)
-        txtAccStatus.Text := "状态：已保存账号「" AddSavedName "」"
+        ShowTempToolTip("已保存账号「" AddSavedName "」")
     }
 }
 
@@ -1993,7 +2077,7 @@ CloseAddDialog() {
 }
 
 DeleteAccount(*) {
-    global AccountsDir, cmbAccounts, txtAccStatus
+    global AccountsDir, cmbAccounts
     Name := Trim(cmbAccounts.Text)
     if (Name = "") {
         MsgBox("先在下拉框里选一个账号。", "删除账号", "OK Icon!")
@@ -2015,25 +2099,23 @@ DeleteAccount(*) {
         return
     }
     RefreshAccountList()
-    txtAccStatus.Text := "状态：已删除账号「" Name "」"
     ShowTempToolTip("已删除账号「" Name "」")
 }
 
 ; 终止进行中的登陆（Esc、全部停止、其他功能启动都会调用）。
 ; 登陆流程在下一个等待点发现标志变了就退出。
 StopLogin(*) {
-    global LoginRunning, txtAccStatus
+    global LoginRunning
     if (!LoginRunning) {
         return
     }
     LoginRunning := false
     ToolTip()
-    txtAccStatus.Text := "状态：登陆已取消"
 }
 
 ; 点“登陆”：读账号文件，停掉其他功能，跑登陆流程，出错弹框说明原因。
 LoginAccount(*) {
-    global LoginRunning, cmbAccounts, txtAccStatus
+    global LoginRunning, cmbAccounts
     global QuickSwitchEnabled, DesktopRunning, TwoRunning, RightRunning
     Name := Trim(cmbAccounts.Text)
     if (Name = "") {
@@ -2069,12 +2151,9 @@ LoginAccount(*) {
     ToolTip()
     if (Failed != "") {
         LogFind("login FAILED: " Failed)
-        txtAccStatus.Text := "状态：登陆失败"
         MsgBox(Failed, "账号登陆", "OK Icon!")
     } else if (Aborted) {
-        txtAccStatus.Text := "状态：登陆已取消"
-    } else {
-        txtAccStatus.Text := "状态：未登陆"
+        LogFind("login: cancelled")
     }
     ; 登陆前快捷切换是开着的，就自动开回来——省得每次登完再手动重开。
     ; 登陆期间要是已经手动开回来了、或者已经开起了别的功能，就不重复动。
@@ -2099,9 +2178,10 @@ LoginSleep(Ms) {
     }
 }
 
+; 登陆进度不再显示在界面上（2026-11-06 去掉了功能 4 的状态行），改记到日志，
+; 登陆出问题时对着 fenix_Find_Log.txt 里 login: 开头的行查。
 LoginStatus(Msg) {
-    global txtAccStatus
-    txtAccStatus.Text := "状态：" Msg
+    LogFind("login: " Msg)
 }
 
 ; 点一个位置：先移过去稍停一下再点，点完也留一点间隔给客户端反应。
