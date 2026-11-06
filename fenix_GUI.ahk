@@ -2348,6 +2348,28 @@ LoginFindWait(Text, &CX, &CY, TimeoutMs, E1 := "", E0 := "") {
     }
 }
 
+; 找登陆确认对话框（中文「是」或英文 Yes），找到就点掉并返回 true；
+; 没找到返回 false。等二次密码时每轮也先调它一次：没有二次密码时
+; 确认框会直接出现，不先找就会干等键盘、白等好几秒。
+ClickLoginConfirmIfPresent() {
+    LoginRegion(&X1, &Y1, &X2, &Y2)
+    if (FindPattern(ConfirmYesText, X1, Y1, X2, Y2, &YX, &YY)) {
+        LogFind("login: confirm 'yes' at (" YX "," YY "), clicked, done")
+        LoginStatus("确认登陆…")
+        LoginSleep(300)
+        LoginClick(YX, YY)
+        return true
+    }
+    if (FindPattern(ConfirmYesENText, X1, Y1, X2, Y2, &YX, &YY)) {
+        LogFind("login: confirm 'yes' (EN) at (" YX "," YY "), clicked, done")
+        LoginStatus("确认登陆…")
+        LoginSleep(300)
+        LoginClick(YX, YY)
+        return true
+    }
+    return false
+}
+
 ; 登陆主流程。出错抛 Error（消息就是弹给用户看的原因）。
 ; 返回 true = 点到了登陆确认；false = 二次密码和确认框都没等到（各等最多 5 秒）
 ; （依次登陆多个桌面时，调用方靠这个区分这个桌面走没走完）。
@@ -2392,12 +2414,16 @@ DoLogin(Name, Pwd, Pwd2) {
     ; 4. 等后续界面（2026-11-07 她定的时限：等二次密码最多 5 秒，
     ; 不再是 30 秒）：有二次密码就先等键盘出现，最多等 5 秒，出现了
     ; 就输完；然后等登陆确认对话框，最多等 5 秒，出现就点「是」，
-    ; 点完本次运行就结束——不检测登陆状态、不报结果。什么都没等到
-    ; 也直接结束（一样不判断、不显示），返回 false 让依次登陆知道
-    ; 这个桌面没走完。
+    ; 点完本次运行就结束——不检测登陆状态、不报结果。等键盘的每轮
+    ; 先找一次确认框：没有二次密码时确认框会直接出现，不先找就会
+    ; 干等键盘、白等好几秒。什么都没等到也直接结束（一样不判断、
+    ; 不显示），返回 false 让依次登陆知道这个桌面没走完。
     if (Pwd2 != "") {
         PinStart := A_TickCount
         Loop {
+            if (ClickLoginConfirmIfPresent()) {
+                return true
+            }
             if (TryEnterSecondPassword(Name, Pwd2)) {
                 break
             }
@@ -2410,19 +2436,7 @@ DoLogin(Name, Pwd, Pwd2) {
     }
     CStart := A_TickCount
     Loop {
-        LoginRegion(&X1, &Y1, &X2, &Y2)
-        if (FindPattern(ConfirmYesText, X1, Y1, X2, Y2, &YX, &YY)) {
-            LogFind("login: confirm 'yes' at (" YX "," YY "), clicked, done")
-            LoginStatus("确认登陆…")
-            LoginSleep(300)
-            LoginClick(YX, YY)
-            return true
-        }
-        if (FindPattern(ConfirmYesENText, X1, Y1, X2, Y2, &YX, &YY)) {
-            LogFind("login: confirm 'yes' (EN) at (" YX "," YY "), clicked, done")
-            LoginStatus("确认登陆…")
-            LoginSleep(300)
-            LoginClick(YX, YY)
+        if (ClickLoginConfirmIfPresent()) {
             return true
         }
         if (A_TickCount - CStart >= 5000) {
@@ -2531,14 +2545,15 @@ HuntPinKeypad(Need, &Cells, &C1X, &C1Y) {
         }
         ByDigit[D] := List
         Counts .= D ":" List.Length " "
-    }
-    LogFind("login: pin hunt matches " Counts)
-    for D, _ in Need {
-        if (ByDigit[D].Length = 0) {
+        if (List.Length = 0) {
+            ; 快速失败：有一个数字一个命中都没有，键盘肯定不在，
+            ; 不用再扫剩下的数字（键盘不在时一轮只扫一遍窗口）。
+            LogFind("login: pin hunt matches " Counts "(stopped early)")
             PinHuntNote := "命中 " Counts "（数字 " D " 一个都没找到）"
             return false
         }
     }
+    LogFind("login: pin hunt matches " Counts)
     ; 标注每个命中是不是被别的数字图案在同一位置也认出来了（串认的命中会被抢认，
     ; 真命中不会——见 PinCellContested），放数字时优先用没被抢认的。
     for D, _ in Need {
