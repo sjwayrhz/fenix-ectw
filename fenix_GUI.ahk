@@ -48,7 +48,7 @@ DetectHiddenWindows(true)
 ;      误匹配进不来。
 ;      之前用的 ImageSearch 模板图里带了会变的数字和游戏背景角，
 ;      数字一变、背景一换就整张对不上，所以完全找不到；FindText
-;      只比图案本身的明暗形状，容错 0.1，数字变了也不影响。
+;      只比图案本身的明暗形状，容错 0.2，数字变了也不影响。
 ;      轮询：
 ;        每轮到一个桌面：先激活游戏窗口，再在窗口里面找放映机
 ;        图标和状态图标；放映机图标在、并且是非暗色，就只按 X、
@@ -190,6 +190,12 @@ FindErr1 := 0.1
 FindErr0 := 0.1
 ProjErr1 := 0.2
 ProjErr0 := 0.2
+; 状态图标（亮/暗/未知）专用容错：2026-11-06 由 0.1 调高到 0.2，
+; 和放映机一样宽松（出现过约 80 分钟三种图标图案都认不出的情况；
+; 亮/暗认错还有亮度复核兜底）。FindErr 保持 0.1 不动，登陆流程的
+; 等待搜索（登陆按钮、确认按钮、输入按钮）还在用它，别跟着变。
+IconErr1 := 0.2
+IconErr0 := 0.2
 BrightText := "|<Bright>*120$42.U000001000000000000000000000003zk00003zk10401zU20430z0k041UV1U040kS30040MA6E040A0A004060M004030k00001VU00400H0004000000400M000400Q000000S000000n000001VU000030k0000200000040A000000400000040000E06000000000000000000000000400080000000000000000000001U"
 DarkText := "|<Dark>*120$42.U000001DzzzzzxTvzzzryTszzz7yTsTzy7yTwDzwDyTw7zsDyTz7zszyTzXVlzyTzlSXzyTzsy7zyTzwyDzyTzyETzyTzzAzzyTzzgzzyTzzGzzyTzzVzzyTzzvzzzTzzzzzzTzzzzzyTjzzzxyTjzzzxzTrvzzvzTzu1VzzTzqzSzzTz6zQzzTz63QzzTzrxSzzzzjxSzzzzjxSzzzzixSzzzzj1VzzzzTzzzzzTTzzyzzjzzzxzU"
 UnknownText := "|<Unknown>*82$46.zzzzzzzvzzzzzzzjzzzzzzzk000000yTzzzzztdzTzzyzqjwzzznzSzszzwTxfzVzzVzqjz3zwDzOzzDznzxfzwTyDzqjzszlzzOzznzDzxfzzbtzzqjzzDDzzOzzytzzxvzzxjzzrjzztzzzSzzzrzzxfzzzzzzqjzzzzzzOzzzzzzxfzzzzzzqjrzzzyzOzzzzzzxfzzzzzzqjzzzzzzOzyTztzxfztzzbzqjzzzzzzOzzzzzzxfzzzzzzqjzzzzzzOzzzPzzxfzzzzzzyjjzzzzTTzzzzzzzi000000SzzzzzzzvzzzzLzzz"
@@ -583,13 +589,15 @@ FindPattern(Text, X1, Y1, X2, Y2, &CX, &CY, E1 := "", E0 := "") {
 
 ; 找一个图标：图标位置不会变，所以没记下位置时（每次刚启动
 ; 轮询时）全屏找一次，找到后调用方把位置记在内存里；以后只在
-; 记下位置附近找（中心 ±60/±50），不再放大到全屏——附近没找到
-; 就是没找到。找到返回 true，OutX/OutY 是图标中心。
+; 记下位置附近找（中心 ±60/±200），不再放大到全屏——附近没找到
+; 就是没找到。纵向原来是 ±50，2026-11-06 放宽到 ±200：放映机
+; 位置曾被记偏 110px，±50 够不着真位置、连漏了 5 分钟。
+; 找到返回 true，OutX/OutY 是图标中心。
 FindIcon(Pattern, RecX, RecY, &OutX, &OutY, E1 := "", E0 := "") {
     OutX := 0
     OutY := 0
     if (RecX != 0) {
-        return FindPattern(Pattern, RecX - 60, RecY - 50, RecX + 60, RecY + 50, &OutX, &OutY, E1, E0)
+        return FindPattern(Pattern, RecX - 60, RecY - 200, RecX + 60, RecY + 200, &OutX, &OutY, E1, E0)
     }
     return FindPattern(Pattern, 0, 0, A_ScreenWidth, A_ScreenHeight, &OutX, &OutY, E1, E0)
 }
@@ -667,10 +675,10 @@ ClickStatusIcon(IconX, IconY) {
 ; （亮版底色浅蓝，暗版底色深紫）。图案认错的时候（比如暗版图标
 ; 顶上有亮边），亮度会把它拦下来，当没找到。
 FindBright(Idx, &OutX, &OutY) {
-    global BrightText, CalStatusX, CalStatusY
+    global BrightText, CalStatusX, CalStatusY, IconErr1, IconErr0
     RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
     RY := (Idx >= 1 && Idx <= CalStatusY.Length) ? CalStatusY[Idx] : 0
-    Found := FindIcon(BrightText, RX, RY, &OutX, &OutY)
+    Found := FindIcon(BrightText, RX, RY, &OutX, &OutY, IconErr1, IconErr0)
     if (!Found) {
         return false
     }
@@ -688,10 +696,10 @@ FindBright(Idx, &OutX, &OutY) {
 ; 再确认一次是真暗色（暗版底色深紫，亮版底色浅蓝）。图案认错
 ; 的时候，亮度会把它拦下来，当非暗色（亮色）。
 FindDark(Idx, &OutX, &OutY) {
-    global DarkText, CalStatusX, CalStatusY
+    global DarkText, CalStatusX, CalStatusY, IconErr1, IconErr0
     RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
     RY := (Idx >= 1 && Idx <= CalStatusY.Length) ? CalStatusY[Idx] : 0
-    Found := FindIcon(DarkText, RX, RY, &OutX, &OutY)
+    Found := FindIcon(DarkText, RX, RY, &OutX, &OutY, IconErr1, IconErr0)
     if (!Found) {
         return false
     }
@@ -710,10 +718,10 @@ FindDark(Idx, &OutX, &OutY) {
 ; 暗版图案都认不到对方（交叉验证过），所以图案本身就够了，不用再验亮度。
 ; 找到返回 true，OutX/OutY 是图标中心。未知图标不点，只按 F 和 X。
 FindUnknown(Idx, &OutX, &OutY) {
-    global UnknownText, CalStatusX, CalStatusY
+    global UnknownText, CalStatusX, CalStatusY, IconErr1, IconErr0
     RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
     RY := (Idx >= 1 && Idx <= CalStatusY.Length) ? CalStatusY[Idx] : 0
-    Found := FindIcon(UnknownText, RX, RY, &OutX, &OutY)
+    Found := FindIcon(UnknownText, RX, RY, &OutX, &OutY, IconErr1, IconErr0)
     if (Found) {
         CalStatusX[Idx] := OutX
         CalStatusY[Idx] := OutY
