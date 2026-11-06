@@ -72,7 +72,7 @@ DetectHiddenWindows(true)
 ;      文件夹里已保存的账号（一个账号一个 .txt，文件名就是账号名，
 ;      第 1 行是登陆密码，第 2 行是二次密码），只能选、不能输；
 ;      每个框最后一行是空行，选空行 = 这个桌面不登陆。
-;      下面三个按钮：新增（弹对话框填账号、密码、二次密码，三个都填好
+;      同一排右边三个按钮：新增（弹对话框填账号、密码、二次密码，三个都填好
 ;      点保存才写入 accounts\账号名.txt）、登陆、删除（删桌面1框里选中的账号）。
 ;      点登陆：窗口最小化 -> 按桌面 1→2→3 依次切桌面、激活该桌面的
 ;      Atlantica Online Fenix 客户端 ->
@@ -334,11 +334,11 @@ ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
     if (HelpShown) {
         txtHelp.Visible := false
-        MyGui.Show("w380 h597")
+        MyGui.Show("w560 h556")
         HelpShown := false
     } else {
         txtHelp.Visible := true
-        MyGui.Show("w700 h597")
+        MyGui.Show("w880 h556")
         HelpShown := true
     }
 }
@@ -358,7 +358,7 @@ txtLifeWaterUnit := MyGui.Add("Text", "x315 y42 w28", "分钟")
 ddlLifeWater.Visible := false
 txtLifeWaterUnit.Visible := false
 txtDesktopStatus := MyGui.Add("Text", "x10 y70 w360", "状态：未运行")
-MyGui.Add("Text", "x10 y90 w360 h2 +0x1000")
+MyGui.Add("Text", "x10 y90 w540 h2 +0x1000")
 
 ; ---- 功能 2：开箱子（两点点击 + 右键点击）----
 ; 坐标不用手输数字：点下面三个取点按钮，窗口会最小化，
@@ -380,7 +380,7 @@ btnRightOnly.OnEvent("Click", MinimizeAndRun(ToggleRightOnly))
 btnSynth := MyGui.Add("Button", "x270 y158 w100 h30", "合成")
 btnSynth.OnEvent("Click", MinimizeAndRun(ToggleSynth))
 txtClickStatus := MyGui.Add("Text", "x10 y193 w360", "状态：未运行")
-MyGui.Add("Text", "x10 y213 w360 h2 +0x1000")
+MyGui.Add("Text", "x10 y213 w540 h2 +0x1000")
 
 ; ---- 3. 快捷切换桌面 ----
 MyGui.Add("Text", "x10 y223 w360", "3. 快捷切换桌面 (~)")
@@ -402,49 +402,51 @@ btnLoadRecord := MyGui.Add("Button", "x250 y338 w55 h30", "读取")
 btnLoadRecord.OnEvent("Click", MinimizeAndRun(LoadRecord))
 btnDeleteRecord := MyGui.Add("Button", "x310 y338 w55 h30", "删除")
 btnDeleteRecord.OnEvent("Click", MinimizeAndRun(DeleteRecord))
-MyGui.Add("Text", "x10 y378 w360 h2 +0x1000")
+MyGui.Add("Text", "x10 y378 w540 h2 +0x1000")
 
 ; ---- 4. 账号登陆 ----
-; 三个短选择框，一个桌面一个（下面分别标注桌面1/2/3）：每个框里是
-; accounts 文件夹里已保存的账号（只能选、不能输），最后一行是空行，
-; 选空行 = 这个桌面不登陆。点「登陆」按桌面 1→2→3 依次登陆选了
-; 账号的桌面。新增账号走「新增」按钮弹的对话框（账号、密码、
-; 二次密码都在对话框里填）；「删除」删的是桌面1框里选中的账号。
+; 三个短选择框和新增/登陆/删除三个按钮在同一排（和最早的单框版式一样）：
+; 一个框管一个桌面，框下面分别标注桌面1/2/3。每个框里是 accounts
+; 文件夹里已保存的账号（只能选、不能输），最后一行是空行，选空行 =
+; 这个桌面不登陆。点「登陆」按桌面 1→2→3 依次登陆选了账号的桌面。
+; 新增账号走「新增」按钮弹的对话框（账号、密码、二次密码都在对话框
+; 里填）；「删除」删的是桌面1框里选中的账号。窗口宽 560 就是为了
+; 让这一排能摆下三个框加三个按钮。
 MyGui.Add("Text", "x10 y388 w360", "4. 账号登陆（无快捷键）")
-cmbAcc1 := MyGui.Add("DropDownList", "x10 y413 w113 r12", [])
-cmbAcc2 := MyGui.Add("DropDownList", "x133 y413 w113 r12", [])
-cmbAcc3 := MyGui.Add("DropDownList", "x256 y413 w113 r12", [])
-SendMessage(0x1701, 12, 0, cmbAcc1)  ; CB_SETMINVISIBLE：弹出列表一次显示 12 行
-SendMessage(0x1701, 12, 0, cmbAcc2)
-SendMessage(0x1701, 12, 0, cmbAcc3)
-MyGui.Add("Text", "x10 y445 w113 +Center", "桌面1")
-MyGui.Add("Text", "x133 y445 w113 +Center", "桌面2")
-MyGui.Add("Text", "x256 y445 w113 +Center", "桌面3")
-btnAddAccount := MyGui.Add("Button", "x10 y470 w113 h30", "新增")
+cmbAcc1 := MyGui.Add("DropDownList", "x10 y413 w110 r35", [])
+cmbAcc2 := MyGui.Add("DropDownList", "x126 y413 w110 r35", [])
+cmbAcc3 := MyGui.Add("DropDownList", "x242 y413 w110 r35", [])
+SendMessage(0x1701, 35, 0, cmbAcc1)  ; CB_SETMINVISIBLE：弹出列表一次显示 35 行，不用滚动
+SendMessage(0x1701, 35, 0, cmbAcc2)
+SendMessage(0x1701, 35, 0, cmbAcc3)
+MyGui.Add("Text", "x10 y445 w110 +Center", "桌面1")
+MyGui.Add("Text", "x126 y445 w110 +Center", "桌面2")
+MyGui.Add("Text", "x242 y445 w110 +Center", "桌面3")
+btnAddAccount := MyGui.Add("Button", "x358 y413 w60 h30", "新增")
 btnAddAccount.OnEvent("Click", AddAccount)
-btnLogin := MyGui.Add("Button", "x133 y470 w113 h30", "登陆")
+btnLogin := MyGui.Add("Button", "x424 y413 w60 h30", "登陆")
 btnLogin.OnEvent("Click", MinimizeAndRun(LoginAccount))
-btnDeleteAccount := MyGui.Add("Button", "x256 y470 w113 h30", "删除")
+btnDeleteAccount := MyGui.Add("Button", "x490 y413 w60 h30", "删除")
 btnDeleteAccount.OnEvent("Click", MinimizeAndRun(DeleteAccount))
 ; 更新结果就显示在这一行（平时空着）：点底部「更新」后显示几秒，然后自动消失。
 ; 功能 4 原来的「状态：未登陆」一行 2026-11-06 按她要求去掉，登陆进度改记到日志。
-txtUpdateStatus := MyGui.Add("Text", "x10 y510 w360", "")
-MyGui.Add("Text", "x10 y534 w360 h2 +0x1000")
+txtUpdateStatus := MyGui.Add("Text", "x10 y469 w540", "")
+MyGui.Add("Text", "x10 y493 w540 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y544 w68 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y503 w100 h30", "全部停止")
 btnStopAll.OnEvent("Click", MinimizeAndRun(StopAll))
-btnSaveConfig := MyGui.Add("Button", "x83 y544 w68 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x120 y503 w100 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", MinimizeAndRun(SaveConfig))
-btnHelp := MyGui.Add("Button", "x156 y544 w68 h30", "使用说明")
+btnHelp := MyGui.Add("Button", "x230 y503 w100 h30", "使用说明")
 btnHelp.OnEvent("Click", ToggleHelp)
 ; 「更新」不包 MinimizeAndRun：点了要留在窗口上看更新结果那一行。
-btnUpdate := MyGui.Add("Button", "x229 y544 w68 h30", "更新")
+btnUpdate := MyGui.Add("Button", "x340 y503 w100 h30", "更新")
 btnUpdate.OnEvent("Click", CheckForUpdate)
-btnExit := MyGui.Add("Button", "x302 y544 w68 h30", "退出")
+btnExit := MyGui.Add("Button", "x450 y503 w100 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 ; 使用说明面板（窗口右侧，平时藏着，点「使用说明」才展开显示）。
-txtHelp := MyGui.Add("Edit", "x390 y10 w300 h577 +ReadOnly +Multi +VScroll", HelpText)
+txtHelp := MyGui.Add("Edit", "x570 y10 w300 h536 +ReadOnly +Multi +VScroll", HelpText)
 txtHelp.Visible := false
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -476,7 +478,7 @@ if (DesktopCount < 1) {
 RefreshRecordList()
 RefreshAccountList()
 
-MyGui.Show("w380 h597")
+MyGui.Show("w560 h556")
 
 ; 打开脚本时默认开启功能 3（快捷切换）：和点「开始」按钮走
 ; 同一条路，开启后 2 秒还会把三个桌面的游戏窗口居中。
@@ -2149,7 +2151,7 @@ StopLogin(*) {
 ; （选空行 = 那个桌面不登陆）。开始前先逐个校验选中的账号文件，
 ; 免得登到一半才发现某个账号文件有问题。某个桌面登陆出错只记下来、
 ; 继续登下一个，全部登完再一起弹框汇总（只登一个桌面时和以前一样，
-; 出错弹完整的说明、30 秒没等到界面也和以前一样静默结束）；按 Esc
+; 出错弹完整的说明、没等到界面也和以前一样静默结束）；按 Esc
 ; 取消整个序列。全部登完切回开始时所在的桌面。
 LoginAccount(*) {
     global LoginRunning, cmbAcc1, cmbAcc2, cmbAcc3
@@ -2212,7 +2214,7 @@ LoginAccount(*) {
                 throw Error("桌面" Desk "上没找到游戏窗口，这个桌面跳过。")
             }
             if (!DoLogin(Name, T[3], T[4]) && Targets.Length > 1) {
-                DeskFailed := "30 秒内没等到二次密码或登陆确认"
+                DeskFailed := "5 秒内没等到二次密码或登陆确认"
             }
         } catch as Err {
             if (Err.Message = "LoginAborted") {
@@ -2329,7 +2331,7 @@ LoginFindWait(Text, &CX, &CY, TimeoutMs, E1 := "", E0 := "") {
 }
 
 ; 登陆主流程。出错抛 Error（消息就是弹给用户看的原因）。
-; 返回 true = 点到了登陆确认；false = 30 秒内什么都没等到
+; 返回 true = 点到了登陆确认；false = 二次密码和确认框都没等到（各等最多 5 秒）
 ; （依次登陆多个桌面时，调用方靠这个区分这个桌面走没走完）。
 DoLogin(Name, Pwd, Pwd2) {
     LogFind("login: start account=" Name " hasSecondPwd=" (Pwd2 != "" ? "yes" : "no"))
@@ -2369,20 +2371,27 @@ DoLogin(Name, Pwd, Pwd2) {
     LoginStatus("点击 Login…")
     LoginClick(BX, BY)
 
-    ; 4. 等后续界面：有二次密码就先输二次密码；出现登陆确认对话框就点「是」，
-    ; 点完本次运行就结束——不检测登陆状态、不报结果。
-    ; 30 秒内什么都没等到也直接结束（一样不判断、不显示）。
-    Start := A_TickCount
-    PinDone := (Pwd2 = "")
+    ; 4. 等后续界面（2026-11-07 她定的时限：等二次密码最多 5 秒，
+    ; 不再是 30 秒）：有二次密码就先等键盘出现，最多等 5 秒，出现了
+    ; 就输完；然后等登陆确认对话框，最多等 5 秒，出现就点「是」，
+    ; 点完本次运行就结束——不检测登陆状态、不报结果。什么都没等到
+    ; 也直接结束（一样不判断、不显示），返回 false 让依次登陆知道
+    ; 这个桌面没走完。
+    if (Pwd2 != "") {
+        PinStart := A_TickCount
+        Loop {
+            if (TryEnterSecondPassword(Name, Pwd2)) {
+                break
+            }
+            if (A_TickCount - PinStart >= 5000) {
+                LogFind("login: no pin keypad within 5s")
+                break
+            }
+            LoginSleep(300)
+        }
+    }
+    CStart := A_TickCount
     Loop {
-        if (A_TickCount - Start >= 30000) {
-            LogFind("login: nothing appeared within 30s, stop")
-            return false
-        }
-        if (!PinDone && TryEnterSecondPassword(Name, Pwd2)) {
-            PinDone := true
-            continue
-        }
         LoginRegion(&X1, &Y1, &X2, &Y2)
         if (FindPattern(ConfirmYesText, X1, Y1, X2, Y2, &YX, &YY)) {
             LogFind("login: confirm 'yes' at (" YX "," YY "), clicked, done")
@@ -2397,6 +2406,10 @@ DoLogin(Name, Pwd, Pwd2) {
             LoginSleep(300)
             LoginClick(YX, YY)
             return true
+        }
+        if (A_TickCount - CStart >= 5000) {
+            LogFind("login: nothing appeared within 5s, stop")
+            return false
         }
         LoginSleep(300)
     }
