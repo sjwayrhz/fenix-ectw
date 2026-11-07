@@ -344,7 +344,7 @@ HelpText := "快捷键说明"
     . "`nF4：回放录制，点按回放 1 次，按住约 2 秒弹出对话框填重复次数（默认 0 = 无限制，填 3 就回放 3 次），回放中再按 F4 立刻停（快捷切换开启时才管用）"
     . "`nF5：开始 / 停止录制，回放中按 F5 也立刻停（快捷切换开启时才管用）"
     . "`nEsc：取点时取消；账号登陆进行中按 Esc 取消登陆"
-    . "`n功能 4「账号登陆」没有快捷键：桌面1/2/3 三个下拉框各选一个已保存的账号（只能选不能输），每个框最后一行是空行、选空行就是这个桌面不登陆；两个框选了同一个账号，点「登陆」会弹窗拦下，不允许重复登陆；点「登陆」按桌面1→2→3 依次登陆选了账号的桌面，自动完成输账号密码、二次密码、登陆确认；点「新增」弹对话框，账号、密码、二次密码（只能是数字）都填好点保存，才会存成 accounts 文件夹里的 账号名.txt（第 1 行密码、第 2 行二次密码），不用再去改 txt 文件；「删除」删的是桌面1框里选中的账号"
+    . "`n功能 4「账号登陆」没有快捷键：桌面1/2/3 三个下拉框各选一个已保存的账号（只能选不能输），每个框最后一行是空行、选空行就是这个桌面不登陆；两个框选了同一个账号，点「登陆」会弹窗拦下，不允许重复登陆；点「登陆」按桌面1→2→3 依次登陆选了账号的桌面（切过去后先核对桌面号，没切成会跳过那个桌面、并在最后的汇总里报错，不会在错桌面上登陆），自动完成输账号密码、二次密码、登陆确认；点「新增」弹对话框，账号、密码、二次密码（只能是数字）都填好点保存，才会存成 accounts 文件夹里的 账号名.txt（第 1 行密码、第 2 行二次密码），不用再去改 txt 文件；「删除」删的是桌面1框里选中的账号"
     . "`n底部「更新」按钮（没有快捷键）：点一下就在脚本所在文件夹里执行 git pull，有新版本就自动重启脚本让新代码生效；结果显示在账号登陆下面那一行，几秒后自动消失，不弹框"
 ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
@@ -947,6 +947,20 @@ GoToDesktopAndWait(DesktopNum) {
             break
         }
         Sleep(100)
+    }
+}
+
+; 读当前桌面号（0 起：桌面1 = 0、桌面2 = 1、桌面3 = 2）；
+; DLL 没加载好或调用失败返回 -1（表示读不到、没法核对）。
+CurrentDesktopNum() {
+    global GetCurrentDesktopNumberProc
+    if (!GetCurrentDesktopNumberProc) {
+        return -1
+    }
+    try {
+        return DllCall(GetCurrentDesktopNumberProc, "Int")
+    } catch {
+        return -1
     }
 }
 
@@ -2303,7 +2317,25 @@ LoginAccount(*) {
             }
             GoToDesktopAndWait(Desk - 1)
             LoginSleep(500)
-            ; 先验这个桌面上有没有游戏窗口：DoLogin 第 1 步在当前桌面
+            ; 验桌面号：切换偶尔会不生效（调用了却没切过去，或者切得
+            ; 太慢、等待超时），而每个桌面都有游戏窗口，光验「当前
+            ; 桌面有窗口」拦不住在错桌面登陆。必须核对当前桌面号就
+            ; 是目标桌面：对不上先重试切一次，还对不上就跳过这个
+            ; 桌面报错，绝不在错桌面上登陆。
+            CurDesk := CurrentDesktopNum()
+            if (CurDesk >= 0 && CurDesk != Desk - 1) {
+                LogFind("login: switch to desktop " Desk " did not take (still on desktop " (CurDesk + 1) "), retrying")
+                GoToDesktopAndWait(Desk - 1)
+                LoginSleep(500)
+                CurDesk := CurrentDesktopNum()
+            }
+            if (CurDesk >= 0 && CurDesk != Desk - 1) {
+                throw Error("没能切到桌面" Desk "（现在还在桌面" (CurDesk + 1) "），这个桌面跳过。")
+            }
+            if (CurDesk >= 0) {
+                LogFind("login: on desktop " Desk " (verified)")
+            }
+            ; 再验这个桌面上有没有游戏窗口：DoLogin 第 1 步在当前桌面
             ; 找不到窗口时，会退到「任意桌面的同名窗口」，依次登陆时
             ; 那样会把账号登进别的桌面的客户端，所以这里先验过。
             if (!ActivateGameByTitle()) {
