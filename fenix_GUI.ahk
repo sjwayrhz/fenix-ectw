@@ -173,15 +173,17 @@ CheckStatusNotFound := false ; 这轮检查：状态图标是不是都没找到�
 
 ; ===== 图标图案（功能 1 用，FindText）=====
 ; 状态图标：交叉双剑的方形图标，亮版底色浅蓝、暗版底色深紫，
-; 图标里的数字会变，只认图案不看数字。亮版和暗版图案都是
-; 42x35，阈值 120，从你发的两张截图裁出来的图标方形转的
-; （亮版取 y 7-41、暗版取 y 2-36，都是 x 3-44）。亮版是浅底
-; 深剑（暗像素只占约 9%），暗版是深底浅剑（暗像素约 83%），
-; 亮版和暗版图案几乎是反的，互相认不到对方。亮暗判断只看暗版图案：
-; 找到暗版就是暗色；暗版没找到时再找未知图案，找到就是未知；
-; 两个都没找到就当非暗色（亮色）。亮版图案只用来定位亮色图标的
-; 位置、记下坐标，不参与亮暗判断。未知图案（46x41，阈值 82）和
-; 亮版、暗版都认不到对方，见 StatusUnknown.png。
+; 图标里的数字会变，只认图案不看数字。亮版图案 42x35，阈值 120，
+; 从你发的截图裁出来的图标方形转的（取 y 7-41、x 3-44），浅底
+; 深剑（暗像素只占约 9%）。暗版原来也用整图 42x35，后来发现中间
+; 的计数数字会变（3/50、10/50…）、整图被数字拖累，换一台电脑时
+; 偶尔认不出，2026-11-07 改成左右两条没有数字的长条（左 13 宽、
+; 右 15 宽、满高 42、阈值 120），两条都对上才算找到，见
+; DarkStripLText 处的说明。亮暗判断只看暗版：找到暗版就是暗色；
+; 暗版没找到时再找未知图案，找到就是未知；两个都没找到就当
+; 非暗色（亮色）。亮版图案只用来定位亮色图标的位置、记下坐标，
+; 不参与亮暗判断。未知图案（46x41，阈值 82）和亮版、暗版都认不到
+; 对方，见 StatusUnknown.png。
 ; 放映机图标：附件里那张放映机截图，45x39，阈值 68，整个图
 ; 标转的图案，里面没有会变的数字。它在不在，决定按不按 X、
 ; 点不点状态图标。
@@ -201,7 +203,20 @@ ProjErr0 := 0.2
 IconErr1 := 0.2
 IconErr0 := 0.2
 BrightText := "|<Bright>*120$42.U000001000000000000000000000003zk00003zk10401zU20430z0k041UV1U040kS30040MA6E040A0A004060M004030k00001VU00400H0004000000400M000400Q000000S000000n000001VU000030k0000200000040A000000400000040000E06000000000000000000000000400080000000000000000000001U"
-DarkText := "|<Dark>*120$42.U000001DzzzzzxTvzzzryTszzz7yTsTzy7yTwDzwDyTw7zsDyTz7zszyTzXVlzyTzlSXzyTzsy7zyTzwyDzyTzyETzyTzzAzzyTzzgzzyTzzGzzyTzzVzzyTzzvzzzTzzzzzzTzzzzzyTjzzzxyTjzzzxzTrvzzvzTzu1VzzTzqzSzzTz6zQzzTz63QzzTzrxSzzzzjxSzzzzjxSzzzzixSzzzzj1VzzzzTzzzzzTTzzyzzjzzzxzU"
+; 暗版图标不用整图图案，改用左右两条长条（2026-11-07 她定的方案）：
+; 图标中间的计数数字会变（3/50、10/50…），整图图案被数字拖累，
+; 换一台电脑时偶尔超容错认不出。两条长条里没有数字：从
+; StatusDark.png 取左条 x2..14（宽 13）、右条 x30..44（宽 15），
+; 满高 42，阈值 120。宽度逐个测过：左 10/11 宽正好切在剑刃高亮
+; 边缘上、误差反而高，13 宽最稳；右条越宽越稳，15 宽再留一列
+; 余量不碰数字。两条一起验（相对位置锁死）：对另一台电脑的新图
+; 误差 0.06，对亮/未知图标 0.7 以上，不会认错。判断逻辑在
+; FindDarkPair：先找左条，再在它右边找右条，两条都对上才算暗版。
+DarkStripLText := "|<DarkL>*120$13.zzzzw04zyzrTsjwLz/zZzyzzTzjzrzvzxzyzzTzjzrzvzxzyzTTjjvrzvzxzyzzTzzzzzzzzzzzzzTzrzzzzzzzzyDzU"
+DarkStripRText := "|<DarkR>*120$15.zzzzz00Dzxyzr7ykzoDy1zkzyDznzyzzrzyzzrzyzzrzyzzzzzzzzzzzjzxzzTtzzrzwzzbzyzzrzyzzrztzzzzzyzzjzzzzzzzzzzzzzU"
+; 左条中心到右条中心的横向距离（两条满高、上下对齐，纵向差 0）；
+; 图标中心 = 两条中心的中间点（左条中心 +14.5）。
+DarkStripDx := 29
 UnknownText := "|<Unknown>*82$46.zzzzzzzvzzzzzzzjzzzzzzzk000000yTzzzzztdzTzzyzqjwzzznzSzszzwTxfzVzzVzqjz3zwDzOzzDznzxfzwTyDzqjzszlzzOzznzDzxfzzbtzzqjzzDDzzOzzytzzxvzzxjzzrjzztzzzSzzzrzzxfzzzzzzqjzzzzzzOzzzzzzxfzzzzzzqjrzzzyzOzzzzzzxfzzzzzzqjzzzzzzOzyTztzxfztzzbzqjzzzzzzOzzzzzzxfzzzzzzqjzzzzzzOzzzPzzxfzzzzzzyjjzzzzTTzzzzzzzi000000SzzzzzzzvzzzzLzzz"
 ProjectorText := "|<projector>*79$46.s000000TDzzzzzwwzzzzzzurzzzzzzfTzVzzzyhzw3zzzurzm7zzzfTy0Nzzyhzt3y3zurzk7sLzfTzEQBTyhzx7koTurzm711zfTz8SOTyhzUXs7zurw0AgTzfTU00kTyhy03k/Turl07k5zfTY030DyhyG00Svurxj007zfTszk7zyhzkzkTzurzUzszzfTyET7zyhztkATzurznsDzzfTzbwTzyhzzbzzzurzzbzxzfTzzbzzyhzzznzzurzzzzzzfzzzzzzzj000000D"
 ProjectorTextOld := "|<projector>*68$45.Tzzzzzzv0000003Hzzzzzz+TzzzzzxLzwLzzzezz1zzzxLzk7zzzezy0zzzxLzU6T3zezw0s1zxLzU3EHzezw0sERxLzo701zezy0s0DxLzm764rezk0k1axLw084Srez001UCxLk0601zey80y0jxLl00k1jez8006NxLt0007jezUz07zxLz3z0zzezs3y7zxLzU7lzrezwM6DyxLzVs7zzezz7szzxLzwDzzzezzsTzbxLzzszbzezzzkXzxLzzzzzzfTzzzzzzQ000000vzzzzzzzSnk0008I"
@@ -716,14 +731,65 @@ FindBright(Idx, &OutX, &OutY) {
     return true
 }
 
-; 找暗版状态图标（判断暗色用）：找到暗版图案，还要用背景亮度
-; 再确认一次是真暗色（暗版底色深紫，亮版底色浅蓝）。图案认错
+; 找暗版图标的两条长条（图案说明在 DarkStripLText 那里）：先找
+; 左条，对每个候选再在它右边 29px 处找右条（偏差 5px 以内算
+; 对上），两条都对上才算找到，返回两条中心的中间点当图标中心。
+; 搜索窗口和 FindIcon 一样的规矩：记过位置就只在附近找（左条
+; 中心按图标中心左移 15 估算，窗口 ±60/±200），没记过全屏找一次。
+FindDarkPair(RecX, RecY, &OutX, &OutY) {
+    global DarkStripLText, DarkStripRText, DarkStripDx, IconErr1, IconErr0
+    OutX := 0
+    OutY := 0
+    if (RecX != 0) {
+        X1 := RecX - 15 - 60
+        Y1 := RecY - 200
+        X2 := RecX - 15 + 60
+        Y2 := RecY + 200
+    } else {
+        X1 := 0
+        Y1 := 0
+        X2 := A_ScreenWidth
+        Y2 := A_ScreenHeight
+    }
+    FX := 0
+    FY := 0
+    Matches := ""
+    try Matches := FindText(&FX, &FY, X1, Y1, X2, Y2, IconErr1, IconErr0, DarkStripLText)
+    if (!IsObject(Matches)) {
+        return false
+    }
+    Tried := 0
+    for _, M in Matches {
+        Tried++
+        if (Tried > 10) {
+            break
+        }
+        LCX := M.mx
+        LCY := M.my
+        EX := LCX + DarkStripDx
+        RCX := 0
+        RCY := 0
+        if (!FindPattern(DarkStripRText, EX - 13, LCY - 26, EX + 13, LCY + 26, &RCX, &RCY, IconErr1, IconErr0)) {
+            continue
+        }
+        if (Abs(RCX - EX) > 5 || Abs(RCY - LCY) > 5) {
+            continue
+        }
+        OutX := Round((LCX + RCX) / 2)
+        OutY := Round((LCY + RCY) / 2)
+        return true
+    }
+    return false
+}
+
+; 找暗版状态图标（判断暗色用）：左右两条长条都对上，还要用背景
+; 亮度再确认一次是真暗色（暗版底色深紫，亮版底色浅蓝）。图案认错
 ; 的时候，亮度会把它拦下来，当非暗色（亮色）。
 FindDark(Idx, &OutX, &OutY) {
-    global DarkText, CalStatusX, CalStatusY, IconErr1, IconErr0
+    global CalStatusX, CalStatusY
     RX := (Idx >= 1 && Idx <= CalStatusX.Length) ? CalStatusX[Idx] : 0
     RY := (Idx >= 1 && Idx <= CalStatusY.Length) ? CalStatusY[Idx] : 0
-    Found := FindIcon(DarkText, RX, RY, &OutX, &OutY, IconErr1, IconErr0)
+    Found := FindDarkPair(RX, RY, &OutX, &OutY)
     if (!Found) {
         return false
     }
