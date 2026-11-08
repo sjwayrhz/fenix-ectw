@@ -243,6 +243,9 @@ ConfirmYesENText := "|<YesEN>*150$24.zzzzzzzzzzzzxrzzxrzzyiCDyhpzzQ4zzRzDzRrjzSA
 ; 阈值得压低才分得开）。只用来在点数字之前辨认是不是英文客户端：输完密码按钮会点亮、
 ; 字样变色，这个图案就找不到了。英文版没有点亮图案可等，输完直接按位置点 Enter。
 SecEnterENText := "|<EnterEN>*70$39.zzzzzzzzzzzzzzzzzzzzzzzzzzy3zDzzznztzzzyS333/zkH9n8TySNC1Dznn9ntzySNCTDzkHAM9zzzzzzzzzzzzzzzzzzzzzzzzzzzU"
+; 登陆完成后要点掉的「关闭」二字（image-30，她 2026-11-08 截的图，32x19 整幅生成，阈值 150；
+; 字的灰度在 79 以下、背景在 150 以上，中间没有过渡像素，图案很干净）
+CloseBtnText := "|<Close>*150$32.0000000000000000000000448000W1Dk000040Dy8F00824E020jo0Tz8F0082AE050Z4028+F0112AE1UAUQ00000000000000008"
 ; 数字键盘上的每个数字：图案直接从她逐个截下来的数字图（十张小图，依次是 1 到 9、0）
 ; 按原图大小生成，一个合成像素都没加；阈值 160 和图案写在一起。
 ; 数字随机排列，所以每个数字单独认；认的时候只找密码里用到的那几个。
@@ -344,7 +347,7 @@ HelpText := "快捷键说明"
     . "`nF4：回放录制，点按回放 1 次，按住约 2 秒弹出对话框填重复次数（默认 0 = 无限制，填 3 就回放 3 次），回放中再按 F4 立刻停（快捷切换开启时才管用）"
     . "`nF5：开始 / 停止录制，回放中按 F5 也立刻停（快捷切换开启时才管用）"
     . "`nEsc：取点时取消；账号登陆进行中按 Esc 取消登陆"
-    . "`n功能 4「账号登陆」没有快捷键：桌面1/2/3 三个下拉框各选一个已保存的账号（只能选不能输），每个框最后一行是空行、选空行就是这个桌面不登陆；两个框选了同一个账号，点「登陆」会弹窗拦下，不允许重复登陆；点「登陆」按桌面1→2→3 依次登陆选了账号的桌面（切过去后先核对桌面号，没切成会跳过那个桌面、并在最后的汇总里报错，不会在错桌面上登陆），自动完成输账号密码、二次密码、登陆确认；点「新增」弹对话框，账号、密码、二次密码（只能是数字）都填好点保存，才会存成 accounts 文件夹里的 账号名.txt（第 1 行密码、第 2 行二次密码），不用再去改 txt 文件；「删除」删的是桌面1框里选中的账号"
+    . "`n功能 4「账号登陆」没有快捷键：桌面1/2/3 三个下拉框各选一个已保存的账号（只能选不能输），每个框最后一行是空行、选空行就是这个桌面不登陆；两个框选了同一个账号，点「登陆」会弹窗拦下，不允许重复登陆；点「登陆」按桌面1→2→3 依次登陆选了账号的桌面（切过去后先核对桌面号，没切成会跳过那个桌面、并在最后的汇总里报错，不会在错桌面上登陆），自动完成输账号密码、二次密码、登陆确认，全部登完再依次回到每个登陆过的桌面、把屏幕上的「关闭」点掉（每个桌面最多找 5 秒，找不到就跳过，登陆时报错跳过的桌面不找），最后切回开始时所在的桌面；点「新增」弹对话框，账号、密码、二次密码（只能是数字）都填好点保存，才会存成 accounts 文件夹里的 账号名.txt（第 1 行密码、第 2 行二次密码），不用再去改 txt 文件；「删除」删的是桌面1框里选中的账号"
     . "`n底部「更新」按钮（没有快捷键）：点一下就在脚本所在文件夹里执行 git pull，有新版本就自动重启脚本让新代码生效；结果显示在账号登陆下面那一行，几秒后自动消失，不弹框"
 ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
@@ -2303,6 +2306,7 @@ LoginAccount(*) {
     }
     LoginRunning := true
     Failures := []
+    LoggedDesks := []
     for T in Targets {
         Desk := T[1]
         Name := T[2]
@@ -2344,6 +2348,7 @@ LoginAccount(*) {
             if (!DoLogin(Name, T[3], T[4]) && Targets.Length > 1) {
                 DeskFailed := "5 秒内没等到二次密码或登陆确认"
             }
+            LoggedDesks.Push(Desk)
         } catch as Err {
             if (Err.Message = "LoginAborted") {
                 break
@@ -2353,6 +2358,24 @@ LoginAccount(*) {
         }
         if (DeskFailed != "") {
             Failures.Push("桌面" Desk "「" Name "」：" DeskFailed)
+        }
+    }
+    ; 收尾：全部登完后，依次回到每个登陆过的桌面（登陆时抛错跳过
+    ; 的不在 LoggedDesks 里，不去），把屏幕上的「关闭」点掉——
+    ; 每个桌面最多找 5 秒，找不到就跳过；做完再往下切回开始的
+    ; 桌面。中途按了 Esc（LoginRunning 被清），这里也停。
+    if (LoginRunning && LoggedDesks.Length > 0) {
+        try {
+            for Desk in LoggedDesks {
+                if (!LoginRunning) {
+                    break
+                }
+                ClickCloseButton(Desk)
+            }
+        } catch as Err2 {
+            if (Err2.Message != "LoginAborted") {
+                throw Err2
+            }
         }
     }
     Aborted := !LoginRunning
@@ -2378,6 +2401,40 @@ LoginAccount(*) {
     if (WasQuickSwitch && !QuickSwitchEnabled && !DesktopRunning && !TwoRunning && !RightRunning) {
         LogFind("login: quick switch was on before login, restored")
         StartQuickSwitch()
+    }
+}
+
+; 收尾点「关闭」：切到指定桌面，在整个屏幕上找「关闭」二字
+; （图案 CloseBtnText），5 秒内找到就点一下；找不到就记日志跳过。
+; 切换后先核对桌面号（和登陆时同一道验）：对不上重试切一次，
+; 还对不上就跳过这个桌面——不在错桌面上乱点。
+ClickCloseButton(Desk) {
+    global CloseBtnText
+    GoToDesktopAndWait(Desk - 1)
+    LoginSleep(300)
+    CurDesk := CurrentDesktopNum()
+    if (CurDesk >= 0 && CurDesk != Desk - 1) {
+        LogFind("login: close-click switch to desktop " Desk " did not take (still on desktop " (CurDesk + 1) "), retrying")
+        GoToDesktopAndWait(Desk - 1)
+        LoginSleep(300)
+        CurDesk := CurrentDesktopNum()
+    }
+    if (CurDesk >= 0 && CurDesk != Desk - 1) {
+        LogFind("login: close-click skipped desktop " Desk " (could not switch to it)")
+        return
+    }
+    Start := A_TickCount
+    Loop {
+        if (FindPattern(CloseBtnText, 0, 0, A_ScreenWidth, A_ScreenHeight, &CX, &CY)) {
+            LoginClick(CX, CY)
+            LogFind("login: close clicked on desktop " Desk " at (" CX "," CY ")")
+            return
+        }
+        if (A_TickCount - Start >= 5000) {
+            LogFind("login: no close button on desktop " Desk " within 5s")
+            return
+        }
+        LoginSleep(250)
     }
 }
 
