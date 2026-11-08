@@ -347,7 +347,7 @@ HelpText := "快捷键说明"
     . "`nF4：回放录制，点按回放 1 次，按住约 2 秒弹出对话框填重复次数（默认 0 = 无限制，填 3 就回放 3 次），回放中再按 F4 立刻停（快捷切换开启时才管用）"
     . "`nF5：开始 / 停止录制，回放中按 F5 也立刻停（快捷切换开启时才管用）"
     . "`nEsc：取点时取消；账号登陆进行中按 Esc 取消登陆"
-    . "`n功能 4「账号登陆」没有快捷键：桌面1/2/3 三个下拉框各选一个已保存的账号（只能选不能输），每个框最后一行是空行、选空行就是这个桌面不登陆；两个框选了同一个账号，点「登陆」会弹窗拦下，不允许重复登陆；点「登陆」按桌面1→2→3 依次登陆选了账号的桌面（切过去后先核对桌面号，没切成会跳过那个桌面、并在最后的汇总里报错，不会在错桌面上登陆），自动完成输账号密码、二次密码、登陆确认，全部登完再依次回到每个登陆过的桌面、把屏幕上的「关闭」点掉（每个桌面最多找 5 秒，找不到就跳过，登陆时报错跳过的桌面不找），最后切回开始时所在的桌面；点「新增」弹对话框，账号、密码、二次密码（只能是数字）都填好点保存，才会存成 accounts 文件夹里的 账号名.txt（第 1 行密码、第 2 行二次密码），不用再去改 txt 文件；「删除」删的是桌面1框里选中的账号"
+    . "`n功能 4「账号登陆」没有快捷键：桌面1/2/3 三个下拉框各选一个已保存的账号（只能选不能输），每个框最后一行是空行、选空行就是这个桌面不登陆；两个框选了同一个账号，点「登陆」会弹窗拦下，不允许重复登陆；点「登陆」按桌面1→2→3 依次登陆选了账号的桌面（切过去后先核对桌面号，没切成会跳过那个桌面、并在最后的汇总里报错，不会在错桌面上登陆），自动完成输账号密码、二次密码、登陆确认，全部登完再依次回到每个登陆过的桌面、把游戏窗口里的「关闭」点掉（每个桌面最多找 5 秒，找不到就跳过，登陆时报错跳过的桌面不找），最后切回开始时所在的桌面；点「新增」弹对话框，账号、密码、二次密码（只能是数字）都填好点保存，才会存成 accounts 文件夹里的 账号名.txt（第 1 行密码、第 2 行二次密码），不用再去改 txt 文件；「删除」删的是桌面1框里选中的账号"
     . "`n底部「更新」按钮（没有快捷键）：点一下就在脚本所在文件夹里执行 git pull，有新版本就自动重启脚本让新代码生效；结果显示在账号登陆下面那一行，几秒后自动消失，不弹框"
 ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
@@ -2404,12 +2404,13 @@ LoginAccount(*) {
     }
 }
 
-; 收尾点「关闭」：切到指定桌面，在整个屏幕上找「关闭」二字
-; （图案 CloseBtnText），5 秒内找到就点一下；找不到就记日志跳过。
-; 切换后先核对桌面号（和登陆时同一道验）：对不上重试切一次，
-; 还对不上就跳过这个桌面——不在错桌面上乱点。
+; 收尾点「关闭」：切到指定桌面，在那个桌面的游戏窗口里找
+; 「关闭」二字（图案 CloseBtnText），5 秒内找到就点一下；
+; 找不到就记日志跳过。切换后先核对桌面号（和登陆时同一道
+; 验）：对不上重试切一次，还对不上就跳过这个桌面——不在错
+; 桌面上乱点。
 ClickCloseButton(Desk) {
-    global CloseBtnText
+    global CloseBtnText, GameWinX, GameWinY, GameWinW, GameWinH
     GoToDesktopAndWait(Desk - 1)
     LoginSleep(300)
     CurDesk := CurrentDesktopNum()
@@ -2423,9 +2424,20 @@ ClickCloseButton(Desk) {
         LogFind("login: close-click skipped desktop " Desk " (could not switch to it)")
         return
     }
+    ; 只在这个桌面的游戏窗口里找（她 2026-11-08 定的范围）：先按
+    ; 标题激活游戏窗口、刷新它的位置和大小；这个桌面上没有游戏
+    ; 窗口就跳过。
+    if (!ActivateGameByTitle()) {
+        LogFind("login: close-click skipped desktop " Desk " (no game window)")
+        return
+    }
+    X1 := GameWinX
+    Y1 := GameWinY
+    X2 := GameWinX + GameWinW
+    Y2 := GameWinY + GameWinH
     Start := A_TickCount
     Loop {
-        if (FindPattern(CloseBtnText, 0, 0, A_ScreenWidth, A_ScreenHeight, &CX, &CY)) {
+        if (FindPattern(CloseBtnText, X1, Y1, X2, Y2, &CX, &CY)) {
             LoginClick(CX, CY)
             LogFind("login: close clicked on desktop " Desk " at (" CX "," CY ")")
             return
