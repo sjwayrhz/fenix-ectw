@@ -329,7 +329,12 @@ RightX := Integer(CfgRightX)
 RightY := Integer(CfgRightY)
 
 ; ===== 图形界面 =====
-MyGui := Gui(, "fenix 功能菜单")
+; 脚本版本号（她 2026-11-09 定的方案 A：显示在窗口标题栏里）。
+; 纪律：每次打新 tag 时，把这里改成新 tag 号，和 tag 保持一致
+; （改这个常量的提交就是 tag 要指向的提交，这样她点「更新」
+; 拉下来的标题就是对的）。
+ScriptVersion := "v0.53"
+MyGui := Gui(, "fenix 功能菜单 " ScriptVersion)
 MyGui.SetFont("s10")
 
 ; 点按钮时先最小化窗口（藏到托盘），再执行按钮原来的功能。
