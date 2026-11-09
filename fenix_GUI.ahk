@@ -106,6 +106,7 @@ IsWindowOnCurrentVirtualDesktopProc := 0
 GetWindowDesktopNumberProc := 0
 GetCurrentDesktopNumberProc := 0
 DesktopCount := 0
+PollDesktopCount := 0   ; 轮询实际跑的桌面数 = min(桌面总数, 3)，启动轮询时算（她 2026-11-09 定：只跑前 3 个）
 if (hDll) {
     GoToDesktopNumberProc := DllCall("GetProcAddress", "Ptr", hDll, "AStr", "GoToDesktopNumber", "Ptr")
     GetDesktopCountProc := DllCall("GetProcAddress", "Ptr", hDll, "AStr", "GetDesktopCount", "Ptr")
@@ -345,7 +346,7 @@ MinimizeThenCall(Func) {
 ; 使用说明面板（窗口右侧，点「使用说明」按钮展开/收起）。
 HelpShown := false
 HelpText := "快捷键说明"
-    . "`n`nF11：开始 / 停止「桌面轮询」"
+    . "`n`nF11：开始 / 停止「桌面轮询」（只轮询前 3 个桌面，第 4 个起不去）"
     . "`n「使用女神的生命水」勾选框（在轮询启停键按钮的右边，勾上才生效）：轮询到某个桌面没找到放映机图标、且这个桌面还没用过生命水，就按一次 F9 并记为已用过；之后再轮询到还是没放映机，不再按；等轮询到这个桌面又有放映机了，标记改回未用过，下次没放映机时再按 F9。三个桌面各记各的。勾选框右边的下拉框（勾上勾选框后才出现）是冷却分钟数：某个桌面按过 F9 后，选定的分钟数内不再考虑给它按 F9，时间到了、放映机还不在就再按一次；选 0 是不设冷却，和没有这个下拉框一样；选「不使用」等于没勾这个勾选框"
     . "`nF12：取点时按它取点（取点成功后 2 秒内按 F12 不起作用，防误触）；「开箱子」运行中按它停止；没运行时按它启动上次点过的模式（刚打开脚本还没点过模式按钮时，按 F12 没反应，第一次必须先点按钮；关掉脚本后上次模式不保留）"
     . "`n飘号键（1 左边）：开启 / 关闭「快捷切换」"
@@ -535,7 +536,7 @@ ToggleDesktop(*) {
     global DesktopRunning, DesktopPhase, DesktopWaitMs, DesktopKey, SwitchClickX, SwitchClickY
     global txtDesktopStatus
     global CfgDesktopWait, CfgDesktopKey, CfgSwitchX, CfgSwitchY
-    global CyclePhase, CycleCount, DesktopNext, CurrentDesktop, DesktopCount
+    global CyclePhase, CycleCount, DesktopNext, CurrentDesktop, DesktopCount, PollDesktopCount
     global CalStatusX, CalStatusY, CalProjX, CalProjY
     global ProjPrevYes, ProjYesTick
     if (DesktopRunning) {
@@ -554,12 +555,18 @@ ToggleDesktop(*) {
     SwitchClickY := Integer(CfgSwitchY)
     DesktopRunning := true
     CycleCount++
+    ; 轮询只跑前 3 个桌面（她 2026-11-09 定的）：桌面再多也只轮
+    ; 前 3 个，第 4 个起不去；不足 3 个就按实际个数跑。桌面总数
+    ; DesktopCount 还是 DLL 读到的真实个数（登陆那边要用它做
+    ; 边界检查），不动，只另算一个轮询专用的个数。
+    PollDesktopCount := Min(DesktopCount, 3)
+    LogFind("polling: start, " DesktopCount " desktops total, polling first " PollDesktopCount)
     ; 各桌面图标位置清零（0 表示还没找到，第一次全窗口找，找到就记下来）。
     CalStatusX := []
     CalStatusY := []
     CalProjX := []
     CalProjY := []
-    Loop DesktopCount {
+    Loop PollDesktopCount {
         CalStatusX.Push(0)
         CalStatusY.Push(0)
         CalProjX.Push(0)
@@ -584,7 +591,7 @@ StartCyclePhase(NewPhase) {
     DesktopNext := 0
     CurrentDesktop := 0
     ToolTip()
-    txtDesktopStatus.Text := "状态：轮询中（放映机图标在才按 X，桌面1不按 X，暗色才点状态图标，未知不点）"
+    txtDesktopStatus.Text := "状态：轮询中（放映机图标在才按 X，桌面1不按 X，暗色才点状态图标，未知不点，只轮询前3个桌面）"
 }
 
 ; 把一次找到的结果记到脚本同目录的 fenix_Find_Log.txt，
@@ -975,7 +982,7 @@ CurrentDesktopNum() {
 
 StepDesktop() {
     global DesktopRunning, CyclePhase, DesktopPhase, DesktopNext, CurrentDesktop
-    global DesktopCount, DesktopKey, KeyGapMs, GoToDesktopNumberProc, DesktopWaitMs, SwitchClickX, SwitchClickY
+    global DesktopCount, PollDesktopCount, DesktopKey, KeyGapMs, GoToDesktopNumberProc, DesktopWaitMs, SwitchClickX, SwitchClickY
     global GameWinX, GameWinY, GameWinW, GameWinH
     global txtDesktopStatus
     if (!DesktopRunning) {
@@ -984,7 +991,7 @@ StepDesktop() {
     if (DesktopPhase = "switch") {
         CurrentDesktop := DesktopNext
         GoToDesktopAndWait(CurrentDesktop)
-        DesktopNext := Mod(DesktopNext + 1, DesktopCount)
+        DesktopNext := Mod(DesktopNext + 1, PollDesktopCount)
         DesktopPhase := "activate"
         SetTimer(StepDesktop, 500)   ; 切换后先停 0.5 秒
     } else if (DesktopPhase = "activate") {
