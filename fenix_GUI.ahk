@@ -333,7 +333,7 @@ RightY := Integer(CfgRightY)
 ; 纪律：每次打新 tag 时，把这里改成新 tag 号，和 tag 保持一致
 ; （改这个常量的提交就是 tag 要指向的提交，这样她点「更新」
 ; 拉下来的标题就是对的）。
-ScriptVersion := "v0.54"
+ScriptVersion := "v0.55"
 MyGui := Gui(, "fenix 功能菜单 " ScriptVersion)
 MyGui.SetFont("s10")
 
