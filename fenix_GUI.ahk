@@ -713,15 +713,20 @@ IconBright(CX, CY) {
     return (Frac > 0.5)
 }
 
-; 点状态图标：点一下，然后模拟人工操作，在图标内部小范围移动鼠标 0.5 秒，
-; 再把鼠标移到左边的横向黄金分割点（屏幕宽度的 0.382 倍、高 200），免得
-; 鼠标挡住图标、影响下次识别。
+; 点状态图标：先模拟人工操作，在图标内部小范围移动鼠标，第三次移动
+; 到位置时点下去（让点击像人工移动中顺手点的一下），再继续移动两次，
+; 然后把鼠标移到左边的横向黄金分割点（屏幕宽度的 0.382 倍、高 200），
+; 免得鼠标挡住图标、影响下次识别。
 ClickStatusIcon(IconX, IconY) {
     global CurrentDesktop
-    LogFind("D" (CurrentDesktop + 1) " CLICK status icon at (" IconX "," IconY ")")
-    Click(IconX, IconY)
     Loop 5 {
-        MouseMove(IconX + Random(-18, 18), IconY + Random(-14, 14), 0)
+        MX := IconX + Random(-18, 18)
+        MY := IconY + Random(-14, 14)
+        MouseMove(MX, MY, 0)
+        if (A_Index = 3) {
+            LogFind("D" (CurrentDesktop + 1) " CLICK status icon at (" MX "," MY ") (3rd jitter move)")
+            Click(MX, MY)
+        }
         Sleep(100)
     }
     MouseMove(Round(A_ScreenWidth * 0.382), 200, 5)
