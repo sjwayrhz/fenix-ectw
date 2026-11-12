@@ -715,10 +715,11 @@ IconBright(CX, CY) {
 
 ; 点状态图标：先模拟人工操作，在图标内部小范围移动鼠标，第三次移动
 ; 到位置时点下去（让点击像人工移动中顺手点的一下），再继续移动两次，
-; 然后把鼠标移到左边的横向黄金分割点（屏幕宽度的 0.382 倍、高 200），
-; 免得鼠标挡住图标、影响下次识别。
+; 然后把鼠标移到游戏窗口标题栏的最左边（标题栏左端，不挡游戏画面、
+; 不影响下次识别）；窗口位置没记下来时，退回以前的停放点
+; （屏幕宽度的 0.382 倍、高 200）。
 ClickStatusIcon(IconX, IconY) {
-    global CurrentDesktop
+    global CurrentDesktop, GameWinX, GameWinY, GameWinW
     Loop 5 {
         MX := IconX + Random(-18, 18)
         MY := IconY + Random(-14, 14)
@@ -729,7 +730,11 @@ ClickStatusIcon(IconX, IconY) {
         }
         Sleep(100)
     }
-    MouseMove(Round(A_ScreenWidth * 0.382), 200, 5)
+    if (GameWinW > 0) {
+        MouseMove(GameWinX + 8, GameWinY + 12, 5)
+    } else {
+        MouseMove(Round(A_ScreenWidth * 0.382), 200, 5)
+    }
     ; 点完多等 0.5 秒再走：切桌面卡顿时，点下去的输入可能还没处理完，
     ; 马上切桌面会把这次点击带到新桌面上去，点到新桌面相同位置的按钮。
     Sleep(500)
