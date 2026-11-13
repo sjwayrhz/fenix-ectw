@@ -713,23 +713,13 @@ IconBright(CX, CY) {
     return (Frac > 0.5)
 }
 
-; 点/滑完状态图标后停鼠标：移到游戏窗口标题栏的最左边（标题栏左端，
-; 不挡游戏画面、不影响下次识别）；窗口位置没记下来时，退回以前的
-; 停放点（屏幕宽度的 0.382 倍、高 200）。
-ParkMouseAfterIcon() {
-    global GameWinX, GameWinY, GameWinW
-    if (GameWinW > 0) {
-        MouseMove(GameWinX + 8, GameWinY + 12, 5)
-    } else {
-        MouseMove(Round(A_ScreenWidth * 0.382), 200, 5)
-    }
-}
-
 ; 点状态图标：先模拟人工操作，在图标内部小范围移动鼠标，第三次移动
 ; 到位置时点下去（让点击像人工移动中顺手点的一下），再继续移动两次，
-; 然后把鼠标停到标题栏最左边（见 ParkMouseAfterIcon）。
+; 然后把鼠标移到游戏窗口标题栏的最左边（标题栏左端，不挡游戏画面、
+; 不影响下次识别）；窗口位置没记下来时，退回以前的停放点
+; （屏幕宽度的 0.382 倍、高 200）。
 ClickStatusIcon(IconX, IconY) {
-    global CurrentDesktop
+    global CurrentDesktop, GameWinX, GameWinY, GameWinW
     Loop 5 {
         MX := IconX + Random(-18, 18)
         MY := IconY + Random(-14, 14)
@@ -740,23 +730,13 @@ ClickStatusIcon(IconX, IconY) {
         }
         Sleep(100)
     }
-    ParkMouseAfterIcon()
+    if (GameWinW > 0) {
+        MouseMove(GameWinX + 8, GameWinY + 12, 5)
+    } else {
+        MouseMove(Round(A_ScreenWidth * 0.382), 200, 5)
+    }
     ; 点完多等 0.5 秒再走：切桌面卡顿时，点下去的输入可能还没处理完，
     ; 马上切桌面会把这次点击带到新桌面上去，点到新桌面相同位置的按钮。
-    Sleep(500)
-}
-
-; 滑过状态图标（亮色时用）：和点图标一样的模拟人工移动（在图标内部
-; 小范围移动鼠标 0.5 秒），但不点；移完把鼠标停到标题栏最左边。
-; 只在 15 秒有效期内调用（调用处判断），过期不滑。
-HoverStatusIcon(IconX, IconY) {
-    global CurrentDesktop
-    LogFind("D" (CurrentDesktop + 1) " HOVER status icon at (" IconX "," IconY ") (bright, no click)")
-    Loop 5 {
-        MouseMove(IconX + Random(-18, 18), IconY + Random(-14, 14), 0)
-        Sleep(100)
-    }
-    ParkMouseAfterIcon()
     Sleep(500)
 }
 
@@ -1099,8 +1079,7 @@ PressPollX(Idx) {
 ; 状态没找到（not found）。
 ; 桌面1永远不按 X：下面规则里说按 X 的地方，桌面1都跳过
 ; （走 PressPollX 总闸）；F、点图标、生命水在桌面1照常。
-;   1. 放映机图标在、并且是非暗色：先模拟人工滑一下鼠标（不点），
-;      再只按 X，不按 F。滑鼠标也只在 15 秒有效期内做（见下）。
+;   1. 放映机图标在、并且是非暗色：只按 X，不按 F，不点。
 ;   2. 未知：按 F；放映机图标在，才在约 0.05 秒后按 X；不点图标。
 ;   3. 暗色 + 放映机在：发现就马上点状态图标一下（在按 F 之前点），
 ;      点之前先复检一次放映机图标（搜状态图标期间它可能刚消失），
@@ -1110,7 +1089,6 @@ PressPollX(Idx) {
 ;      点击还有 15 秒有效期：放映机由不在变在才开始计时，这个
 ;      桌面连续「在」超过 15 秒后，就算找到暗色也不点（F、X
 ;      照常）；放映机变不在再变在，重新计时。见 NoteProjectorVisit。
-;      亮色的滑鼠标共用同一个 15 秒窗口：过期也不滑。
 ;   4. 状态没找到：按 F；放映机图标在，才在约 0.05 秒后按 X；不点。
 ;   5. 女神的生命水（勾选框勾上才生效，本轮动作做完后判断一次）：
 ;      放映机不在、且这个桌面还没记过已使用，就按 F9 并记已使用；
@@ -1200,14 +1178,7 @@ MainCheckStep() {
         }
     }
     if (ProjFound && !DarkFound && !UnknownFound && !CheckStatusNotFound) {
-        ; 放映机图标在、并且是非暗色（亮色）：先模拟人工滑一下鼠标
-        ; （不点），再只按 X，不按 F（桌面1不按 X）。
-        ; 滑鼠标也只在 15 秒有效期内做，和暗色点击共用一个窗口。
-        if (DarkClickInWindow(Idx)) {
-            HoverStatusIcon(BX, BY)
-        } else {
-            LogFind("D" Idx " projwin: bright found but 15s hover window expired, no hover")
-        }
+        ; 放映机图标在、并且是非暗色（亮色）：只按 X，不按 F，不点（桌面1不按 X）。
         Pressed := PressPollX(Idx)
         ToolTip("Desktop " Idx ": projector yes, non-dark, " (Pressed ? "X only, no F, no click" : "no X (D1), no F, no click"))
         ApplyLifeWaterRule(Idx)
