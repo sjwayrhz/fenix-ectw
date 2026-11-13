@@ -170,7 +170,6 @@ LifeWaterPressTick := [0, 0, 0] ; 女神的生命水：每个桌面上次按 F9 
 ProjPrevYes := [false, false, false] ; 每个桌面上一次轮询时放映机在不在（暗色点击有效期用）
 ProjYesTick := [0, 0, 0]             ; 每个桌面放映机这次「连续在」是从何时开始的（A_TickCount，0=当前不在）
 DarkClickWindowMs := 15000           ; 暗色点击有效期：放映机由不在变在之后 15 秒内点才有效
-BrightHoverCycle := [0, 0, 0]        ; 亮色滑鼠标的节流计数：每个桌面自上次暗色点击（或上次滑完）以来放映机开关的次数；5 次内不滑，超过 5 次才滑
 CheckStatusNotFound := false ; 这轮检查：状态图标是不是都没找到（check 步记下，pressX 步用）
 
 ; ===== 图标图案（功能 1 用，FindText）=====
@@ -544,7 +543,7 @@ ToggleDesktop(*) {
     global CfgDesktopWait, CfgDesktopKey, CfgSwitchX, CfgSwitchY
     global CyclePhase, CycleCount, DesktopNext, CurrentDesktop, DesktopCount, PollDesktopCount
     global CalStatusX, CalStatusY, CalProjX, CalProjY
-    global ProjPrevYes, ProjYesTick, BrightHoverCycle
+    global ProjPrevYes, ProjYesTick
     if (DesktopRunning) {
         StopDesktopPolling()
         ToolTip()
@@ -582,10 +581,8 @@ ToggleDesktop(*) {
     CurrentDesktop := 0
     ; 暗色点击有效期重新观察：放映机上次状态和计时起点都清零，
     ; 第一次看到放映机在就算它刚变在、窗口从那一刻起算 15 秒。
-    ; 亮色滑鼠标的开关计数也清零重数。
     ProjPrevYes := [false, false, false]
     ProjYesTick := [0, 0, 0]
-    BrightHoverCycle := [0, 0, 0]
     StartCyclePhase("main")
     StepDesktop()
 }
@@ -1102,10 +1099,8 @@ PressPollX(Idx) {
 ; 状态没找到（not found）。
 ; 桌面1永远不按 X：下面规则里说按 X 的地方，桌面1都跳过
 ; （走 PressPollX 总闸）；F、点图标、生命水在桌面1照常。
-;   1. 放映机图标在、并且是非暗色：先看要不要模拟人工滑一下鼠标
-;      （不点），再只按 X，不按 F。滑鼠标要同时满足：还在 15 秒
-;      有效期内，并且自上次暗色点击（或上次滑完）以来放映机开关
-;      超过 5 次；5 次内不滑，滑完重新从 0 数（见下）。
+;   1. 放映机图标在、并且是非暗色：先模拟人工滑一下鼠标（不点），
+;      再只按 X，不按 F。滑鼠标也只在 15 秒有效期内做（见下）。
 ;   2. 未知：按 F；放映机图标在，才在约 0.05 秒后按 X；不点图标。
 ;   3. 暗色 + 放映机在：发现就马上点状态图标一下（在按 F 之前点），
 ;      点之前先复检一次放映机图标（搜状态图标期间它可能刚消失），
@@ -1115,10 +1110,7 @@ PressPollX(Idx) {
 ;      点击还有 15 秒有效期：放映机由不在变在才开始计时，这个
 ;      桌面连续「在」超过 15 秒后，就算找到暗色也不点（F、X
 ;      照常）；放映机变不在再变在，重新计时。见 NoteProjectorVisit。
-;      亮色的滑鼠标共用同一个 15 秒窗口：过期也不滑；另外还要数
-;      放映机开关次数：每次由不在变在算一次，自上次暗色点击（或
-;      上次滑完）以来 5 次内不滑，超过 5 次才滑，滑完重新从 0 数。
-;      见 NoteProjectorVisit（计数）、BrightHoverCycle。
+;      亮色的滑鼠标共用同一个 15 秒窗口：过期也不滑。
 ;   4. 状态没找到：按 F；放映机图标在，才在约 0.05 秒后按 X；不点。
 ;   5. 女神的生命水（勾选框勾上才生效，本轮动作做完后判断一次）：
 ;      放映机不在、且这个桌面还没记过已使用，就按 F9 并记已使用；
@@ -1128,7 +1120,7 @@ PressPollX(Idx) {
 ;      等于没勾。见 ApplyLifeWaterRule。
 MainCheckStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey, KeyGapMs
-    global CheckProjFound, CheckStatusNotFound, BrightHoverCycle
+    global CheckProjFound, CheckStatusNotFound
     Idx := CurrentDesktop + 1
     ; 先搜状态图标，最后搜放映机图标：放映机在不在是这一轮
     ; 点不点、按不按 X 的判断底子，放在最后搜，它最新。
@@ -1177,9 +1169,6 @@ MainCheckStep() {
             ToolTip("Desktop " Idx ": dark, projector gone at re-check, no click")
         } else {
             ClickStatusIcon(DX, DY)
-            ; 暗色点完，亮色滑鼠标的开关计数清零：后面放映机开关
-            ; 5 次内不滑（超过 5 次才滑一次，滑完再从 0 数）。
-            BrightHoverCycle[Idx] := 0
             LogFind("D" Idx " dark found, clicked immediately")
             ToolTip("Desktop " Idx ": projector yes, dark, clicked immediately")
             ; 点完重新找一次状态，判断现在是不是非暗色（亮色）。
@@ -1211,18 +1200,13 @@ MainCheckStep() {
         }
     }
     if (ProjFound && !DarkFound && !UnknownFound && !CheckStatusNotFound) {
-        ; 放映机图标在、并且是非暗色（亮色）：先看要不要模拟人工滑
-        ; 一下鼠标（不点），再只按 X，不按 F（桌面1不按 X）。
-        ; 滑鼠标要同时满足两个条件：还在 15 秒有效期内（和暗色点击
-        ; 共用一个窗口），并且自上次暗色点击（或上次滑完）以来放映机
-        ; 开关超过 5 次；5 次内不滑，滑完重新从 0 数。
-        if (!DarkClickInWindow(Idx)) {
-            LogFind("D" Idx " projwin: bright found but 15s hover window expired, no hover")
-        } else if (BrightHoverCycle[Idx] <= 5) {
-            LogFind("D" Idx " projwin: bright hover suppressed, projector cycle " BrightHoverCycle[Idx] "/5 since last dark click")
-        } else {
+        ; 放映机图标在、并且是非暗色（亮色）：先模拟人工滑一下鼠标
+        ; （不点），再只按 X，不按 F（桌面1不按 X）。
+        ; 滑鼠标也只在 15 秒有效期内做，和暗色点击共用一个窗口。
+        if (DarkClickInWindow(Idx)) {
             HoverStatusIcon(BX, BY)
-            BrightHoverCycle[Idx] := 0
+        } else {
+            LogFind("D" Idx " projwin: bright found but 15s hover window expired, no hover")
         }
         Pressed := PressPollX(Idx)
         ToolTip("Desktop " Idx ": projector yes, non-dark, " (Pressed ? "X only, no F, no click" : "no X (D1), no F, no click"))
@@ -1237,28 +1221,21 @@ MainCheckStep() {
     SetTimer(StepDesktop, KeyGapMs)
 }
 
-; 暗色点击的 15 秒有效期记账 + 亮色滑鼠标的放映机开关计数：
-; 每轮检查的放映机结果定下来后调一次。放映机由不在变在
-; （上次记的是不在、这次在），从这一刻开始计时，同时开关
-; 次数 +1；这次不在，就把起点清零。三个桌面各记各的。
+; 暗色点击的 15 秒有效期记账：每轮检查的放映机结果定下来后
+; 调一次。放映机由不在变在（上次记的是不在、这次在），从
+; 这一刻开始计时；这次不在，就把起点清零。三个桌面各记各的。
 ; 每次启动轮询时在 ToggleDesktop 里清零重记：第一次看到放映机
 ; 在，就当它刚变在、窗口从那一刻起算。
 NoteProjectorVisit(Idx) {
-    global ProjPrevYes, ProjYesTick, CheckProjFound, BrightHoverCycle
+    global ProjPrevYes, ProjYesTick, CheckProjFound
     while (ProjPrevYes.Length < Idx) {
         ProjPrevYes.Push(false)
         ProjYesTick.Push(0)
     }
-    while (BrightHoverCycle.Length < Idx) {
-        BrightHoverCycle.Push(0)
-    }
     if (CheckProjFound) {
         if (!ProjPrevYes[Idx]) {
             ProjYesTick[Idx] := A_TickCount
-            ; 放映机由不在变在算一次：亮色滑鼠标的计数 +1（暗色点完、
-            ; 亮色滑完、启动轮询时清零；5 次内不滑，超过 5 次才滑）。
-            BrightHoverCycle[Idx]++
-            LogFind("D" Idx " projwin: projector no -> yes, 15s dark-click window started, bright-hover cycle " BrightHoverCycle[Idx])
+            LogFind("D" Idx " projwin: projector no -> yes, 15s dark-click window started")
         }
     } else {
         ProjYesTick[Idx] := 0
