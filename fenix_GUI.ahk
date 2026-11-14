@@ -14,7 +14,7 @@ DetectHiddenWindows(true)
 ; 不会出现两个脚本互相冲突。
 ;
 ; 功能：
-;   1. 桌面轮询（F11）：按 F11 或点按钮启动后，三个桌面一直
+;   1. 桌面轮询（F11）：按 F11 或点按钮启动后，所选桌面一直
 ;      轮询切换，停掉之前不会自己停。
 ;      切到每个桌面后，先激活游戏窗口（窗口是窗口模式跑的，
 ;      不激活的话按 F/X 进不去游戏；以前要手动点一下窗口，
@@ -106,7 +106,7 @@ IsWindowOnCurrentVirtualDesktopProc := 0
 GetWindowDesktopNumberProc := 0
 GetCurrentDesktopNumberProc := 0
 DesktopCount := 0
-PollDesktopCount := 0   ; 轮询实际跑的桌面数 = min(桌面总数, 3)，启动轮询时算（她 2026-11-09 定：只跑前 3 个）
+PollDesktopCount := 0   ; 轮询实际跑的桌面数，启动轮询时算：不勾「选择桌面」= min(桌面总数, 3)；勾上 = min(桌面总数, 下拉框 1-4)
 if (hDll) {
     GoToDesktopNumberProc := DllCall("GetProcAddress", "Ptr", hDll, "AStr", "GoToDesktopNumber", "Ptr")
     GetDesktopCountProc := DllCall("GetProcAddress", "Ptr", hDll, "AStr", "GetDesktopCount", "Ptr")
@@ -165,10 +165,10 @@ CalStatusY := []
 CalProjX := []          ; 放映机图标中心
 CalProjY := []
 CheckProjFound := false ; 这轮检查：放映机图标在不在（check 步记下，pressX 步用）
-LifeWaterUsed := [false, false, false] ; 女神的生命水：每个桌面（下标 1..3）有没有记过「已使用」
-LifeWaterPressTick := [0, 0, 0] ; 女神的生命水：每个桌面上次按 F9 的时刻（A_TickCount，0=没按过），给冷却下拉框计时用
-ProjPrevYes := [false, false, false] ; 每个桌面上一次轮询时放映机在不在（暗色点击有效期用）
-ProjYesTick := [0, 0, 0]             ; 每个桌面放映机这次「连续在」是从何时开始的（A_TickCount，0=当前不在）
+LifeWaterUsed := [false, false, false, false] ; 女神的生命水：每个桌面（下标 1..4）有没有记过「已使用」
+LifeWaterPressTick := [0, 0, 0, 0] ; 女神的生命水：每个桌面上次按 F9 的时刻（A_TickCount，0=没按过），给冷却下拉框计时用
+ProjPrevYes := [false, false, false, false] ; 每个桌面上一次轮询时放映机在不在（暗色点击有效期用）
+ProjYesTick := [0, 0, 0, 0]             ; 每个桌面放映机这次「连续在」是从何时开始的（A_TickCount，0=当前不在）
 DarkClickWindowMs := 15000           ; 暗色点击有效期：放映机由不在变在之后 15 秒内点才有效
 CheckStatusNotFound := false ; 这轮检查：状态图标是不是都没找到（check 步记下，pressX 步用）
 
@@ -351,8 +351,9 @@ MinimizeThenCall(Func) {
 ; 使用说明面板（窗口右侧，点「使用说明」按钮展开/收起）。
 HelpShown := false
 HelpText := "快捷键说明"
-    . "`n`nF11：开始 / 停止「桌面轮询」（只轮询前 3 个桌面，第 4 个起不去）"
-    . "`n「使用女神的生命水」勾选框（在轮询启停键按钮的右边，勾上才生效）：轮询到某个桌面没找到放映机图标、且这个桌面还没用过生命水，就按一次 F9 并记为已用过；之后再轮询到还是没放映机，不再按；等轮询到这个桌面又有放映机了，标记改回未用过，下次没放映机时再按 F9。三个桌面各记各的。勾选框右边的下拉框（勾上勾选框后才出现）是冷却分钟数：某个桌面按过 F9 后，选定的分钟数内不再考虑给它按 F9，时间到了、放映机还不在就再按一次；选 0 是不设冷却，和没有这个下拉框一样；选「不使用」等于没勾这个勾选框"
+    . "`n`nF11：开始 / 停止「桌面轮询」（默认轮询前 3 个桌面；勾上「选择桌面」后按下拉框的个数轮）"
+    . "`n「使用女神的生命水」勾选框（在轮询启停键按钮的右边，勾上才生效）：轮询到某个桌面没找到放映机图标、且这个桌面还没用过生命水，就按一次 F9 并记为已用过；之后再轮询到还是没放映机，不再按；等轮询到这个桌面又有放映机了，标记改回未用过，下次没放映机时再按 F9。各桌面各记各的。勾选框右边的下拉框（勾上勾选框后才出现）是冷却分钟数：某个桌面按过 F9 后，选定的分钟数内不再考虑给它按 F9，时间到了、放映机还不在就再按一次；选 0 是不设冷却，和没有这个下拉框一样；选「不使用」等于没勾这个勾选框"
+    . "`n「选择桌面」勾选框（在「使用女神的生命水」下面，同一列，默认不勾）：不勾就轮询前 3 个桌面，和以前一样；勾上才按右边下拉框的个数轮，选 1 只轮桌面 1，选 2 轮桌面 1+2，选 3 轮桌面 1+2+3，选 4 轮桌面 1 到 4，轮询从桌面 1 开始累计。下拉框勾上才出现，默认选 3，每次打开脚本回到不勾、不存配置；桌面实际个数不足时按实际个数跑"
     . "`nF12：取点时按它取点（取点成功后 2 秒内按 F12 不起作用，防误触）；「开箱子」运行中按它停止；没运行时按它启动上次点过的模式（刚打开脚本还没点过模式按钮时，按 F12 没反应，第一次必须先点按钮；关掉脚本后上次模式不保留）"
     . "`n飘号键（1 左边）：开启 / 关闭「快捷切换」"
     . "`nF1 / F2 / F3：切到桌面 1 / 2 / 3（快捷切换开启时才管用）"
@@ -365,18 +366,20 @@ ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
     if (HelpShown) {
         txtHelp.Visible := false
-        MyGui.Show("w412 h556")
+        MyGui.Show("w412 h591")
         HelpShown := false
     } else {
         txtHelp.Visible := true
-        MyGui.Show("w732 h556")
+        MyGui.Show("w732 h591")
         HelpShown := true
     }
 }
 
 ; ---- 功能 1：桌面轮询 ----
+; 「选择桌面」在「使用女神的生命水」下面、同一列（x140），
+; 启停键按钮加高到 65，刚好盖住这两行。
 MyGui.Add("Text", "x10 y10 w360", "1. 桌面轮询 (F11)")
-btnDesktop := MyGui.Add("Button", "x10 y35 w120 h30", "启停键 F11")
+btnDesktop := MyGui.Add("Button", "x10 y35 w120 h65", "启停键 F11")
 btnDesktop.OnEvent("Click", MinimizeAndRun(ToggleDesktop))
 chkLifeWater := MyGui.Add("CheckBox", "x140 y35 w135 h30", "使用女神的生命水")
 chkLifeWater.OnEvent("Click", ToggleLifeWaterOptions)
@@ -388,52 +391,62 @@ ddlLifeWater.Value := 1
 txtLifeWaterUnit := MyGui.Add("Text", "x345 y42 w28", "分钟")
 ddlLifeWater.Visible := false
 txtLifeWaterUnit.Visible := false
-txtDesktopStatus := MyGui.Add("Text", "x10 y70 w360", "状态：未运行")
-MyGui.Add("Text", "x10 y90 w392 h2 +0x1000")
+; 选择桌面下拉框：1/2/3/4 是轮询的桌面个数，从桌面 1 开始累计。
+; 默认选 3，每次打开脚本都回到不勾、不存配置。
+; 勾上勾选框才显示下拉框和「个桌面」三个字，不勾就藏起来（默认不勾，所以先藏）。
+chkSelectDesktop := MyGui.Add("CheckBox", "x140 y70 w135 h30", "选择桌面")
+chkSelectDesktop.OnEvent("Click", ToggleSelectDesktopOptions)
+ddlDesktopCount := MyGui.Add("DropDownList", "x285 y70 w55 r4", ["1", "2", "3", "4"])
+ddlDesktopCount.Value := 3
+txtDesktopCountUnit := MyGui.Add("Text", "x345 y77 w55", "个桌面")
+ddlDesktopCount.Visible := false
+txtDesktopCountUnit.Visible := false
+txtDesktopStatus := MyGui.Add("Text", "x10 y105 w360", "状态：未运行")
+MyGui.Add("Text", "x10 y125 w392 h2 +0x1000")
 
 ; ---- 功能 2：开箱子（两点点击 + 右键点击）----
 ; 坐标不用手输数字：点下面三个取点按钮，窗口会最小化，
 ; 把鼠标移到要记录的位置按 F12 取点（有「取点成功」提示），
 ; 按 Esc 取消。取到的坐标不显示在界面上。
-MyGui.Add("Text", "x10 y100 w360", "2. 开箱子 (F12)")
+MyGui.Add("Text", "x10 y135 w360", "2. 开箱子 (F12)")
 MyGui.SetFont("s9")
-btnCapRight := MyGui.Add("Button", "x10 y122 w126 h30", "箱子位置取点F12")
+btnCapRight := MyGui.Add("Button", "x10 y157 w126 h30", "箱子位置取点F12")
 btnCapRight.OnEvent("Click", (*) => CapturePos(3))
-btnCapP1 := MyGui.Add("Button", "x143 y122 w126 h30", "自动放入取点F12")
+btnCapP1 := MyGui.Add("Button", "x143 y157 w126 h30", "自动放入取点F12")
 btnCapP1.OnEvent("Click", (*) => CapturePos(1))
-btnCapP2 := MyGui.Add("Button", "x276 y122 w126 h30", "开始精炼取点F12")
+btnCapP2 := MyGui.Add("Button", "x276 y157 w126 h30", "开始精炼取点F12")
 btnCapP2.OnEvent("Click", (*) => CapturePos(2))
 MyGui.SetFont("s10")
-btnBoth := MyGui.Add("Button", "x10 y158 w170 h30", "两种点击同时操作")
+btnBoth := MyGui.Add("Button", "x10 y193 w170 h30", "两种点击同时操作")
 btnBoth.OnEvent("Click", MinimizeAndRun(ToggleBoth))
-btnRightOnly := MyGui.Add("Button", "x188 y158 w104 h30", "抽奖")
+btnRightOnly := MyGui.Add("Button", "x188 y193 w104 h30", "抽奖")
 btnRightOnly.OnEvent("Click", MinimizeAndRun(ToggleRightOnly))
-btnSynth := MyGui.Add("Button", "x298 y158 w104 h30", "合成")
+btnSynth := MyGui.Add("Button", "x298 y193 w104 h30", "合成")
 btnSynth.OnEvent("Click", MinimizeAndRun(ToggleSynth))
-txtClickStatus := MyGui.Add("Text", "x10 y193 w360", "状态：未运行")
-MyGui.Add("Text", "x10 y213 w392 h2 +0x1000")
+txtClickStatus := MyGui.Add("Text", "x10 y228 w360", "状态：未运行")
+MyGui.Add("Text", "x10 y248 w392 h2 +0x1000")
 
 ; ---- 3. 快捷切换桌面 ----
-MyGui.Add("Text", "x10 y223 w360", "3. 快捷切换桌面 (~)")
-btnQuickStart := MyGui.Add("Button", "x10 y248 w191 h30", "开始：快捷切换")
+MyGui.Add("Text", "x10 y258 w360", "3. 快捷切换桌面 (~)")
+btnQuickStart := MyGui.Add("Button", "x10 y283 w191 h30", "开始：快捷切换")
 btnQuickStart.OnEvent("Click", MinimizeAndRun(StartQuickSwitch))
-btnQuickStop := MyGui.Add("Button", "x211 y248 w191 h30", "停止")
+btnQuickStop := MyGui.Add("Button", "x211 y283 w191 h30", "停止")
 btnQuickStop.OnEvent("Click", MinimizeAndRun(StopQuickSwitch))
 btnQuickStop.Enabled := false
-txtQuickStatus := MyGui.Add("Text", "x10 y288 w360", "状态：未录制")
+txtQuickStatus := MyGui.Add("Text", "x10 y323 w360", "状态：未录制")
 
 ; ---- 已保存的录制 ----
 ; 录制存在脚本目录下的 records 文件夹里，一个录制一个文件，文件名就是录制的名字。
 ; 下拉框里可以直接输新名字（点保存就是存成这个名字），也可以选已有的名字（点读取、删除）。
-MyGui.Add("Text", "x10 y313 w360", "已保存的录制")
-cmbRecords := MyGui.Add("ComboBox", "x10 y338 w190", [])
-btnSaveRecord := MyGui.Add("Button", "x208 y338 w60 h30", "保存")
+MyGui.Add("Text", "x10 y348 w360", "已保存的录制")
+cmbRecords := MyGui.Add("ComboBox", "x10 y373 w190", [])
+btnSaveRecord := MyGui.Add("Button", "x208 y373 w60 h30", "保存")
 btnSaveRecord.OnEvent("Click", MinimizeAndRun(SaveRecord))
-btnLoadRecord := MyGui.Add("Button", "x274 y338 w60 h30", "读取")
+btnLoadRecord := MyGui.Add("Button", "x274 y373 w60 h30", "读取")
 btnLoadRecord.OnEvent("Click", MinimizeAndRun(LoadRecord))
-btnDeleteRecord := MyGui.Add("Button", "x340 y338 w60 h30", "删除")
+btnDeleteRecord := MyGui.Add("Button", "x340 y373 w60 h30", "删除")
 btnDeleteRecord.OnEvent("Click", MinimizeAndRun(DeleteRecord))
-MyGui.Add("Text", "x10 y378 w392 h2 +0x1000")
+MyGui.Add("Text", "x10 y413 w392 h2 +0x1000")
 
 ; ---- 4. 账号登陆 ----
 ; 三个短选择框和新增/登陆/删除三个按钮在同一排（和最早的单框版式一样）：
@@ -445,43 +458,43 @@ MyGui.Add("Text", "x10 y378 w392 h2 +0x1000")
 ; 三个框各 w68 正好显示全（w60 时最后一个字符显示不下，她定的）；
 ; 三个按钮合起来宽约 170，和功能 3 的录制框一样宽。窗口配合加宽
 ; 到 412（原 380），上面三个部分也相应略宽，整体匀称。
-MyGui.Add("Text", "x10 y388 w180", "4. 账号登陆（无快捷键）")
+MyGui.Add("Text", "x10 y423 w180", "4. 账号登陆（无快捷键）")
 ; 「关闭王者日志」默认勾选：勾上才在登陆后去各桌面点「关闭」；不勾只登陆不点。
-chkCloseKingLog := MyGui.Add("CheckBox", "x200 y388 w130 h20 Checked", "关闭王者日志")
-cmbAcc1 := MyGui.Add("DropDownList", "x10 y413 w68 r35", [])
-cmbAcc2 := MyGui.Add("DropDownList", "x82 y413 w68 r35", [])
-cmbAcc3 := MyGui.Add("DropDownList", "x154 y413 w68 r35", [])
+chkCloseKingLog := MyGui.Add("CheckBox", "x200 y423 w130 h20 Checked", "关闭王者日志")
+cmbAcc1 := MyGui.Add("DropDownList", "x10 y448 w68 r35", [])
+cmbAcc2 := MyGui.Add("DropDownList", "x82 y448 w68 r35", [])
+cmbAcc3 := MyGui.Add("DropDownList", "x154 y448 w68 r35", [])
 SendMessage(0x1701, 35, 0, cmbAcc1)  ; CB_SETMINVISIBLE：弹出列表一次显示 35 行，不用滚动
 SendMessage(0x1701, 35, 0, cmbAcc2)
 SendMessage(0x1701, 35, 0, cmbAcc3)
-MyGui.Add("Text", "x10 y445 w68 +Center", "桌面1")
-MyGui.Add("Text", "x82 y445 w68 +Center", "桌面2")
-MyGui.Add("Text", "x154 y445 w68 +Center", "桌面3")
-btnAddAccount := MyGui.Add("Button", "x227 y413 w55 h30", "新增")
+MyGui.Add("Text", "x10 y480 w68 +Center", "桌面1")
+MyGui.Add("Text", "x82 y480 w68 +Center", "桌面2")
+MyGui.Add("Text", "x154 y480 w68 +Center", "桌面3")
+btnAddAccount := MyGui.Add("Button", "x227 y448 w55 h30", "新增")
 btnAddAccount.OnEvent("Click", AddAccount)
-btnLogin := MyGui.Add("Button", "x286 y413 w55 h30", "登陆")
+btnLogin := MyGui.Add("Button", "x286 y448 w55 h30", "登陆")
 btnLogin.OnEvent("Click", MinimizeAndRun(LoginAccount))
-btnDeleteAccount := MyGui.Add("Button", "x345 y413 w55 h30", "删除")
+btnDeleteAccount := MyGui.Add("Button", "x345 y448 w55 h30", "删除")
 btnDeleteAccount.OnEvent("Click", MinimizeAndRun(DeleteAccount))
 ; 更新结果就显示在这一行（平时空着）：点底部「更新」后显示几秒，然后自动消失。
 ; 功能 4 原来的「状态：未登陆」一行 2026-11-06 按她要求去掉，登陆进度改记到日志。
-txtUpdateStatus := MyGui.Add("Text", "x10 y469 w392", "")
-MyGui.Add("Text", "x10 y493 w392 h2 +0x1000")
+txtUpdateStatus := MyGui.Add("Text", "x10 y504 w392", "")
+MyGui.Add("Text", "x10 y528 w392 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y503 w72 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y538 w72 h30", "全部停止")
 btnStopAll.OnEvent("Click", MinimizeAndRun(StopAll))
-btnSaveConfig := MyGui.Add("Button", "x90 y503 w72 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x90 y538 w72 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", MinimizeAndRun(SaveConfig))
-btnHelp := MyGui.Add("Button", "x170 y503 w72 h30", "使用说明")
+btnHelp := MyGui.Add("Button", "x170 y538 w72 h30", "使用说明")
 btnHelp.OnEvent("Click", ToggleHelp)
 ; 「更新」不包 MinimizeAndRun：点了要留在窗口上看更新结果那一行。
-btnUpdate := MyGui.Add("Button", "x250 y503 w72 h30", "更新")
+btnUpdate := MyGui.Add("Button", "x250 y538 w72 h30", "更新")
 btnUpdate.OnEvent("Click", CheckForUpdate)
-btnExit := MyGui.Add("Button", "x330 y503 w72 h30", "退出")
+btnExit := MyGui.Add("Button", "x330 y538 w72 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 ; 使用说明面板（窗口右侧，平时藏着，点「使用说明」才展开显示）。
-txtHelp := MyGui.Add("Edit", "x422 y10 w300 h536 +ReadOnly +Multi +VScroll", HelpText)
+txtHelp := MyGui.Add("Edit", "x422 y10 w300 h571 +ReadOnly +Multi +VScroll", HelpText)
 txtHelp.Visible := false
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -513,7 +526,7 @@ if (DesktopCount < 1) {
 RefreshRecordList()
 RefreshAccountList()
 
-MyGui.Show("w412 h556")
+MyGui.Show("w412 h591")
 
 ; 打开脚本时默认开启功能 3（快捷切换）：和点「开始」按钮走
 ; 同一条路，开启后 2 秒还会把三个桌面的游戏窗口居中。
@@ -546,6 +559,7 @@ ToggleDesktop(*) {
     global CyclePhase, CycleCount, DesktopNext, CurrentDesktop, DesktopCount, PollDesktopCount
     global CalStatusX, CalStatusY, CalProjX, CalProjY
     global ProjPrevYes, ProjYesTick
+    global chkSelectDesktop, ddlDesktopCount
     if (DesktopRunning) {
         StopDesktopPolling()
         ToolTip()
@@ -562,11 +576,25 @@ ToggleDesktop(*) {
     SwitchClickY := Integer(CfgSwitchY)
     DesktopRunning := true
     CycleCount++
-    ; 轮询只跑前 3 个桌面（她 2026-11-09 定的）：桌面再多也只轮
-    ; 前 3 个，第 4 个起不去；不足 3 个就按实际个数跑。桌面总数
-    ; DesktopCount 还是 DLL 读到的真实个数（登陆那边要用它做
+    ; 轮询个数在启动那一刻定下来，启动后改勾选框/下拉框不影响
+    ; 正在跑的这一轮（要停掉重开才按新的个数跑）。
+    ; 不勾「选择桌面」：只跑前 3 个桌面（她 2026-11-09 定的），
+    ; 桌面再多也只轮前 3 个，第 4 个起不去；不足 3 个按实际个数跑。
+    ; 勾上「选择桌面」：按下拉框的个数轮（1-4，从桌面 1 开始累计），
+    ; 选 4 就去桌面 4；不足下拉框的个数时按实际个数跑。
+    ; 桌面总数 DesktopCount 还是 DLL 读到的真实个数（登陆那边要用它做
     ; 边界检查），不动，只另算一个轮询专用的个数。
-    PollDesktopCount := Min(DesktopCount, 3)
+    if (chkSelectDesktop.Value) {
+        SelCount := Integer(ddlDesktopCount.Text)
+        if (SelCount < 1) {
+            SelCount := 1
+        } else if (SelCount > 4) {
+            SelCount := 4
+        }
+        PollDesktopCount := Min(DesktopCount, SelCount)
+    } else {
+        PollDesktopCount := Min(DesktopCount, 3)
+    }
     LogFind("polling: start, " DesktopCount " desktops total, polling first " PollDesktopCount)
     ; 各桌面图标位置清零（0 表示还没找到，第一次全窗口找，找到就记下来）。
     CalStatusX := []
@@ -583,8 +611,8 @@ ToggleDesktop(*) {
     CurrentDesktop := 0
     ; 暗色点击有效期重新观察：放映机上次状态和计时起点都清零，
     ; 第一次看到放映机在就算它刚变在、窗口从那一刻起算 15 秒。
-    ProjPrevYes := [false, false, false]
-    ProjYesTick := [0, 0, 0]
+    ProjPrevYes := [false, false, false, false]
+    ProjYesTick := [0, 0, 0, 0]
     StartCyclePhase("main")
     StepDesktop()
 }
@@ -592,13 +620,13 @@ ToggleDesktop(*) {
 ; 开始轮询：从桌面 1 重新开始。
 StartCyclePhase(NewPhase) {
     global CyclePhase, DesktopPhase, DesktopNext, CurrentDesktop
-    global txtDesktopStatus
+    global txtDesktopStatus, PollDesktopCount
     CyclePhase := NewPhase
     DesktopPhase := "switch"
     DesktopNext := 0
     CurrentDesktop := 0
     ToolTip()
-    txtDesktopStatus.Text := "状态：轮询中（放映机图标在才按 X，桌面1不按 X，暗色才点状态图标，未知不点，只轮询前3个桌面）"
+    txtDesktopStatus.Text := "状态：轮询中（放映机图标在才按 X，桌面1不按 X，暗色才点状态图标，未知不点，轮询前" PollDesktopCount "个桌面）"
 }
 
 ; 把一次找到的结果记到脚本同目录的 fenix_Find_Log.txt，
@@ -1196,7 +1224,7 @@ MainCheckStep() {
 
 ; 暗色点击的 15 秒有效期记账：每轮检查的放映机结果定下来后
 ; 调一次。放映机由不在变在（上次记的是不在、这次在），从
-; 这一刻开始计时；这次不在，就把起点清零。三个桌面各记各的。
+; 这一刻开始计时；这次不在，就把起点清零。各桌面各记各的。
 ; 每次启动轮询时在 ToggleDesktop 里清零重记：第一次看到放映机
 ; 在，就当它刚变在、窗口从那一刻起算。
 NoteProjectorVisit(Idx) {
@@ -1232,7 +1260,7 @@ DarkClickInWindow(Idx) {
 ; 「已使用」，就按一下 F9（用一次生命水）并记成已使用；之后
 ; 再轮询到、放映机还是不在，标记不变、不再按；等轮询到这个
 ; 桌面放映机图标在了，就把标记改回未使用，下次不在时再按 F9。
-; 三个桌面各记各的（LifeWaterUsed 下标 1..3）。标记只在这次
+; 各桌面各记各的（LifeWaterUsed 下标 1..4）。标记只在这次
 ; 运行里记着，脚本重开就回到全未使用。
 ; 勾选框右边的下拉框是冷却分钟数（判断时现读）：
 ;   选 0：不设冷却，和没有这个下拉框时一样（就按上面标记走）。
@@ -1248,6 +1276,17 @@ ToggleLifeWaterOptions(*) {
     Show := chkLifeWater.Value ? true : false
     ddlLifeWater.Visible := Show
     txtLifeWaterUnit.Visible := Show
+}
+
+; 「选择桌面」勾上才显示个数下拉框和「个桌面」三个字，不勾就藏起来
+; （和生命水冷却框同一个套路）。只管显示，不管轮询个数——
+; 轮询个数只在按 F11 启动那一刻按勾选框/下拉框读一次，启动后
+; 再改这里不影响正在跑的这一轮。
+ToggleSelectDesktopOptions(*) {
+    global chkSelectDesktop, ddlDesktopCount, txtDesktopCountUnit
+    Show := chkSelectDesktop.Value ? true : false
+    ddlDesktopCount.Visible := Show
+    txtDesktopCountUnit.Visible := Show
 }
 
 ApplyLifeWaterRule(Idx) {
