@@ -359,7 +359,7 @@ HelpText := "快捷键说明"
     . "`nF4：回放录制，点按回放 1 次，按住约 2 秒弹出对话框填重复次数（默认 0 = 无限制，填 3 就回放 3 次），回放中再按 F4 立刻停（快捷切换开启时才管用）"
     . "`nF5：开始 / 停止录制，回放中按 F5 也立刻停（快捷切换开启时才管用）"
     . "`nEsc：取点时取消；账号登陆进行中按 Esc 取消登陆"
-    . "`n功能 4「账号登陆」没有快捷键：桌面1/2/3 三个下拉框各选一个已保存的账号（只能选不能输），每个框最后一行是空行、选空行就是这个桌面不登陆；两个框选了同一个账号，点「登陆」会弹窗拦下，不允许重复登陆；点「登陆」按桌面1→2→3 依次登陆选了账号的桌面（切过去后先核对桌面号，没切成会跳过那个桌面、并在最后的汇总里报错，不会在错桌面上登陆），自动完成输账号密码、二次密码、登陆确认，全部登完再依次回到每个登陆过的桌面、把游戏窗口里的「关闭」（英文版是 Close，两个都认）点掉（每个桌面最多找 8 秒，找不到就跳过，登陆时报错跳过的桌面不找），最后切回开始时所在的桌面；点「新增」弹对话框，账号、密码、二次密码（只能是数字）都填好点保存，才会存成 accounts 文件夹里的 账号名.txt（第 1 行密码、第 2 行二次密码），不用再去改 txt 文件；「删除」删的是桌面1框里选中的账号"
+    . "`n功能 4「账号登陆」没有快捷键：桌面1/2/3 三个下拉框各选一个已保存的账号（只能选不能输），每个框最后一行是空行、选空行就是这个桌面不登陆；两个框选了同一个账号，点「登陆」会弹窗拦下，不允许重复登陆；点「登陆」按桌面1→2→3 依次登陆选了账号的桌面（切过去后先核对桌面号，没切成会跳过那个桌面、并在最后的汇总里报错，不会在错桌面上登陆），自动完成输账号密码、二次密码、登陆确认，全部登完再依次回到每个登陆过的桌面、把游戏窗口里的「关闭」（英文版是 Close，两个都认）点掉（每个桌面最多找 8 秒，找不到就跳过，登陆时报错跳过的桌面不找；标题右边的「关闭王者日志」勾选框勾上才点，默认勾选，不勾就只登陆不点），最后切回开始时所在的桌面；点「新增」弹对话框，账号、密码、二次密码（只能是数字）都填好点保存，才会存成 accounts 文件夹里的 账号名.txt（第 1 行密码、第 2 行二次密码），不用再去改 txt 文件；「删除」删的是桌面1框里选中的账号"
     . "`n底部「更新」按钮（没有快捷键）：点一下就在脚本所在文件夹里执行 git pull，有新版本就自动重启脚本让新代码生效；结果显示在账号登陆下面那一行，几秒后自动消失，不弹框"
 ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
@@ -445,7 +445,9 @@ MyGui.Add("Text", "x10 y378 w392 h2 +0x1000")
 ; 三个框各 w68 正好显示全（w60 时最后一个字符显示不下，她定的）；
 ; 三个按钮合起来宽约 170，和功能 3 的录制框一样宽。窗口配合加宽
 ; 到 412（原 380），上面三个部分也相应略宽，整体匀称。
-MyGui.Add("Text", "x10 y388 w360", "4. 账号登陆（无快捷键）")
+MyGui.Add("Text", "x10 y388 w180", "4. 账号登陆（无快捷键）")
+; 「关闭王者日志」默认勾选：勾上才在登陆后去各桌面点「关闭」；不勾只登陆不点。
+chkCloseKingLog := MyGui.Add("CheckBox", "x200 y388 w130 h20 Checked", "关闭王者日志")
 cmbAcc1 := MyGui.Add("DropDownList", "x10 y413 w68 r35", [])
 cmbAcc2 := MyGui.Add("DropDownList", "x82 y413 w68 r35", [])
 cmbAcc3 := MyGui.Add("DropDownList", "x154 y413 w68 r35", [])
@@ -2283,7 +2285,7 @@ StopLogin(*) {
 ; 出错弹完整的说明、没等到界面也和以前一样静默结束）；按 Esc
 ; 取消整个序列。全部登完切回开始时所在的桌面。
 LoginAccount(*) {
-    global LoginRunning, cmbAcc1, cmbAcc2, cmbAcc3
+    global LoginRunning, cmbAcc1, cmbAcc2, cmbAcc3, chkCloseKingLog
     global QuickSwitchEnabled, DesktopRunning, TwoRunning, RightRunning
     global DesktopCount, GetCurrentDesktopNumberProc
     Targets := []
@@ -2393,7 +2395,11 @@ LoginAccount(*) {
     ; 版是 Close）点掉——每个桌面最多找 8 秒，找不到就跳过；
     ; 做完再往下切回开始的桌面。中途按了 Esc（LoginRunning 被
     ; 清），这里也停。
-    if (LoginRunning && LoggedDesks.Length > 0) {
+    ; 「关闭王者日志」没勾：只登陆不点关闭，直接往下切回开始的桌面。
+    if (LoginRunning && LoggedDesks.Length > 0 && !chkCloseKingLog.Value) {
+        LogFind("login: close-click skipped (checkbox off)")
+    }
+    if (LoginRunning && LoggedDesks.Length > 0 && chkCloseKingLog.Value) {
         try {
             for Desk in LoggedDesks {
                 if (!LoginRunning) {
