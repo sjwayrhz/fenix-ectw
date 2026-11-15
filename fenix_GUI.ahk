@@ -782,12 +782,12 @@ ClickStatusIcon(IconX, IconY) {
 
 ; 滑一滑（不点）：某个桌面放映机在→不在攒够 5 次、期间一次都没
 ; 点过状态图标，从下次放映机在开始，每次轮询到就把鼠标移到记下
-; 的状态图标位置附近小范围滑动几下（模拟人工操作），滑完停到
-; 游戏窗口标题栏最左端（和点完一样），不留在图标上挡下次识别。
+; 的状态图标位置附近小范围滑动几下（模拟人工操作），滑完鼠标就
+; 留在图标上、不移开（她 2026-11-16 定的：一直留在图标上 hover）。
 ; 没记过图标位置就没地方滑，直接跳过。点过一次计数就清零重算，
 ; 见 ClickStatusIcon。
 HoverNearIcon(Idx) {
-    global CalStatusX, CalStatusY, GameWinX, GameWinY, GameWinW, ProjNoClickCount
+    global CalStatusX, CalStatusY, ProjNoClickCount
     if (Idx < 1 || Idx > CalStatusX.Length || CalStatusX[Idx] = 0) {
         return false
     }
@@ -796,11 +796,6 @@ HoverNearIcon(Idx) {
     Loop 5 {
         MouseMove(IconX + Random(-18, 18), IconY + Random(-14, 14), 0)
         Sleep(100)
-    }
-    if (GameWinW > 0) {
-        MouseMove(GameWinX + 8, GameWinY + 12, 5)
-    } else {
-        MouseMove(Round(A_ScreenWidth * 0.382), 200, 5)
     }
     LogFind("D" Idx " hover near icon (" IconX "," IconY "), no click in " ProjNoClickCount[Idx] " proj cycles")
     return true
