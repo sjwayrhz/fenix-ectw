@@ -169,6 +169,7 @@ LifeWaterUsed := [false, false, false, false] ; 女神的生命水：每个桌�
 LifeWaterPressTick := [0, 0, 0, 0] ; 女神的生命水：每个桌面上次按 F9 的时刻（A_TickCount，0=没按过），给冷却下拉框计时用
 ProjPrevYes := [false, false, false, false] ; 每个桌面上一次轮询时放映机在不在（暗色点击有效期用）
 ProjYesTick := [0, 0, 0, 0]             ; 每个桌面放映机这次「连续在」是从何时开始的（A_TickCount，0=当前不在）
+ProjNoClickCount := [0, 0, 0, 0]        ; 每个桌面自上次点过状态图标以来，放映机由在变不在的次数（攒够 5 次还没点，就滑鼠标）
 DarkClickWindowMs := 15000           ; 暗色点击有效期：放映机由不在变在之后 15 秒内点才有效
 CheckStatusNotFound := false ; 这轮检查：状态图标是不是都没找到（check 步记下，pressX 步用）
 
@@ -354,6 +355,7 @@ HelpText := "快捷键说明"
     . "`n`nF11：开始 / 停止「桌面轮询」（默认轮询前 3 个桌面；勾上「选择桌面」后按下拉框的个数轮）"
     . "`n「使用女神的生命水」勾选框（在轮询启停键按钮的右边，勾上才生效）：轮询到某个桌面没找到放映机图标、且这个桌面还没用过生命水，就按一次 F9 并记为已用过；之后再轮询到还是没放映机，不再按；等轮询到这个桌面又有放映机了，标记改回未用过，下次没放映机时再按 F9。各桌面各记各的。勾选框右边的下拉框（勾上勾选框后才出现）是冷却分钟数：某个桌面按过 F9 后，选定的分钟数内不再考虑给它按 F9，时间到了、放映机还不在就再按一次；选 0 是不设冷却，和没有这个下拉框一样；选「不使用」等于没勾这个勾选框"
     . "`n「选择桌面」勾选框（在「使用女神的生命水」下面，同一列，默认不勾）：不勾就轮询前 3 个桌面，和以前一样；勾上才按右边下拉框的个数轮，选 1 只轮桌面 1，选 2 轮桌面 1+2，选 3 轮桌面 1+2+3，选 4 轮桌面 1 到 4，轮询从桌面 1 开始累计。下拉框勾上才出现，默认选 3，每次打开脚本回到不勾、不存配置；桌面实际个数不足时按实际个数跑"
+    . "`n放映机空转滑鼠标：某个桌面放映机由在变不在攒够 5 次、期间一次都没点过状态图标，从第 6 次放映机在开始，每次轮询到就把鼠标移到记下的状态图标位置附近滑几下（不点），直到哪次点了暗色为止；点过一次就重新数 5 次"
     . "`nF12：取点时按它取点（取点成功后 2 秒内按 F12 不起作用，防误触）；「开箱子」运行中按它停止；没运行时按它启动上次点过的模式（刚打开脚本还没点过模式按钮时，按 F12 没反应，第一次必须先点按钮；关掉脚本后上次模式不保留）"
     . "`n飘号键（1 左边）：开启 / 关闭「快捷切换」"
     . "`nF1 / F2 / F3：切到桌面 1 / 2 / 3（快捷切换开启时才管用）"
@@ -558,7 +560,7 @@ ToggleDesktop(*) {
     global CfgDesktopWait, CfgDesktopKey, CfgSwitchX, CfgSwitchY
     global CyclePhase, CycleCount, DesktopNext, CurrentDesktop, DesktopCount, PollDesktopCount
     global CalStatusX, CalStatusY, CalProjX, CalProjY
-    global ProjPrevYes, ProjYesTick
+    global ProjPrevYes, ProjYesTick, ProjNoClickCount
     global chkSelectDesktop, ddlDesktopCount
     if (DesktopRunning) {
         StopDesktopPolling()
@@ -611,8 +613,10 @@ ToggleDesktop(*) {
     CurrentDesktop := 0
     ; 暗色点击有效期重新观察：放映机上次状态和计时起点都清零，
     ; 第一次看到放映机在就算它刚变在、窗口从那一刻起算 15 秒。
+    ; 放映机在→不在的空转计数也清零重数。
     ProjPrevYes := [false, false, false, false]
     ProjYesTick := [0, 0, 0, 0]
+    ProjNoClickCount := [0, 0, 0, 0]
     StartCyclePhase("main")
     StepDesktop()
 }
@@ -749,7 +753,13 @@ IconBright(CX, CY) {
 ; 不影响下次识别）；窗口位置没记下来时，退回以前的停放点
 ; （屏幕宽度的 0.382 倍、高 200）。
 ClickStatusIcon(IconX, IconY) {
-    global CurrentDesktop, GameWinX, GameWinY, GameWinW
+    global CurrentDesktop, GameWinX, GameWinY, GameWinW, ProjNoClickCount
+    ; 这次点了状态图标：放映机在→不在的空转计数重新算。
+    Idx := CurrentDesktop + 1
+    while (ProjNoClickCount.Length < Idx) {
+        ProjNoClickCount.Push(0)
+    }
+    ProjNoClickCount[Idx] := 0
     Loop 5 {
         MX := IconX + Random(-18, 18)
         MY := IconY + Random(-14, 14)
@@ -768,6 +778,32 @@ ClickStatusIcon(IconX, IconY) {
     ; 点完多等 0.5 秒再走：切桌面卡顿时，点下去的输入可能还没处理完，
     ; 马上切桌面会把这次点击带到新桌面上去，点到新桌面相同位置的按钮。
     Sleep(500)
+}
+
+; 滑一滑（不点）：某个桌面放映机在→不在攒够 5 次、期间一次都没
+; 点过状态图标，从下次放映机在开始，每次轮询到就把鼠标移到记下
+; 的状态图标位置附近小范围滑动几下（模拟人工操作），滑完停到
+; 游戏窗口标题栏最左端（和点完一样），不留在图标上挡下次识别。
+; 没记过图标位置就没地方滑，直接跳过。点过一次计数就清零重算，
+; 见 ClickStatusIcon。
+HoverNearIcon(Idx) {
+    global CalStatusX, CalStatusY, GameWinX, GameWinY, GameWinW, ProjNoClickCount
+    if (Idx < 1 || Idx > CalStatusX.Length || CalStatusX[Idx] = 0) {
+        return false
+    }
+    IconX := CalStatusX[Idx]
+    IconY := CalStatusY[Idx]
+    Loop 5 {
+        MouseMove(IconX + Random(-18, 18), IconY + Random(-14, 14), 0)
+        Sleep(100)
+    }
+    if (GameWinW > 0) {
+        MouseMove(GameWinX + 8, GameWinY + 12, 5)
+    } else {
+        MouseMove(Round(A_ScreenWidth * 0.382), 200, 5)
+    }
+    LogFind("D" Idx " hover near icon (" IconX "," IconY "), no click in " ProjNoClickCount[Idx] " proj cycles")
+    return true
 }
 
 ; 找亮版状态图标（只用来定位亮色图标的位置、记下坐标，不参与
@@ -1120,7 +1156,11 @@ PressPollX(Idx) {
 ;      桌面连续「在」超过 15 秒后，就算找到暗色也不点（F、X
 ;      照常）；放映机变不在再变在，重新计时。见 NoteProjectorVisit。
 ;   4. 状态没找到：按 F；放映机图标在，才在约 0.05 秒后按 X；不点。
-;   5. 女神的生命水（勾选框勾上才生效，本轮动作做完后判断一次）：
+;   5. 放映机空转滑鼠标：某个桌面放映机由在变不在攒够 5 次、期间
+;      一次都没点过状态图标，从第 6 次放映机在开始，每次轮询到
+;      就把鼠标移到记下的状态图标位置附近滑几下（不点），直到哪
+;      次点了暗色、计数清零为止。点过一次重新数。见 HoverNearIcon。
+;   6. 女神的生命水（勾选框勾上才生效，本轮动作做完后判断一次）：
 ;      放映机不在、且这个桌面还没记过已使用，就按 F9 并记已使用；
 ;      放映机在，就把标记改回未使用。勾选框右边的下拉框选了
 ;      5/10 分钟时，按过 F9 的桌面冷却这么久，时间到了、
@@ -1128,7 +1168,7 @@ PressPollX(Idx) {
 ;      等于没勾。见 ApplyLifeWaterRule。
 MainCheckStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, DesktopKey, KeyGapMs
-    global CheckProjFound, CheckStatusNotFound
+    global CheckProjFound, CheckStatusNotFound, ProjNoClickCount
     Idx := CurrentDesktop + 1
     ; 先搜状态图标，最后搜放映机图标：放映机在不在是这一轮
     ; 点不点、按不按 X 的判断底子，放在最后搜，它最新。
@@ -1207,6 +1247,14 @@ MainCheckStep() {
         }
         }
     }
+    ; 放映机在→不在攒够 5 次、期间一次都没点过状态图标：从这次
+    ; 放映机在开始，鼠标在记下的图标位置附近滑一滑（不点），直到
+    ; 哪次点了暗色、计数清零为止。点过这次的计数已经在
+    ; ClickStatusIcon 里清零了，所以点完这轮不会再滑；复检时放映机
+    ; 没了也不滑（ProjFound 已经是 false）。
+    if (ProjFound && ProjNoClickCount[Idx] >= 5) {
+        HoverNearIcon(Idx)
+    }
     if (ProjFound && !DarkFound && !UnknownFound && !CheckStatusNotFound) {
         ; 放映机图标在、并且是非暗色（亮色）：只按 X，不按 F，不点（桌面1不按 X）。
         Pressed := PressPollX(Idx)
@@ -1228,10 +1276,11 @@ MainCheckStep() {
 ; 每次启动轮询时在 ToggleDesktop 里清零重记：第一次看到放映机
 ; 在，就当它刚变在、窗口从那一刻起算。
 NoteProjectorVisit(Idx) {
-    global ProjPrevYes, ProjYesTick, CheckProjFound
+    global ProjPrevYes, ProjYesTick, CheckProjFound, ProjNoClickCount
     while (ProjPrevYes.Length < Idx) {
         ProjPrevYes.Push(false)
         ProjYesTick.Push(0)
+        ProjNoClickCount.Push(0)
     }
     if (CheckProjFound) {
         if (!ProjPrevYes[Idx]) {
@@ -1240,6 +1289,12 @@ NoteProjectorVisit(Idx) {
         }
     } else {
         ProjYesTick[Idx] := 0
+        if (ProjPrevYes[Idx]) {
+            ; 放映机由在变不在，算一次「空转」：这一次变化之前没点过
+            ; 状态图标。攒够 5 次还没点，从下次放映机在开始滑鼠标。
+            ProjNoClickCount[Idx]++
+            LogFind("D" Idx " projwin: projector yes -> no, no-click cycle " ProjNoClickCount[Idx] " (5 = start hovering)")
+        }
     }
     ProjPrevYes[Idx] := CheckProjFound
 }
