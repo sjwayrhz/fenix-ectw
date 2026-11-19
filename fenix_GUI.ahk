@@ -210,10 +210,14 @@ IconErr0 := 0.2
 ; 站图标，再依次点 11 张物品图。来源：recycle_bin.jpg（她发的
 ; 回收站截图，23x25）、picture.zip 里的 11 张物品图（39-40x27-28），
 ; 原图存在 images/ 里，图案用 tools/digitlab/gen_recycle_patterns.py
-; 生成（阈值 120，和状态图标一样）。容错 0.2：11 张图两两之间最
-; 接近的一对（4 号对 6 号）按类算错也还有 0.446，远高于 0.2，
-; 不会认错成别的图；回收站和物品图之间最近也有 0.523。
-; 阈值 150 时最接近的一对只剩 0.146，太近不能用，所以定 120。
+; 生成（阈值 120，和状态图标一样）。2026-11-19 16:04 她重发 2 号
+; 和 10 号两张实屏截图，2 号（41x29）和 10 号（40x30）按新图重做；
+; 新图和旧图几乎一样（按类算错 2 号 0.024、10 号 0.005），2 号离
+; 4 号最近（0.202），10 号离 6 号最近（0.290），都在 0.2 之上。
+; 容错 0.2：11 张图两两之间最接近的一对（4 号对 6 号）按类算错
+; 也还有 0.446，远高于 0.2，不会认错成别的图；回收站和物品图
+; 之间最近也有 0.523。阈值 150 时最接近的一对只剩 0.146，太近
+; 不能用，所以定 120。
 RecycleErr1 := 0.2
 RecycleErr0 := 0.2
 F12DoubleMs := 400   ; 双击 F12 的判定：两次按下间隔不到 400ms 算双击
@@ -223,7 +227,7 @@ RecycleItemGapMs := 200 ; 每点一张物品图之后等的毫秒数
 RecycleBinText := "|<RecycleBin>*120$23.zXzby0Tbl07b701sy00nw01bs033k0D001y006w00Ns01ns077k0ATU0Mz00Vy013w027s00Ts00zk01zk07zs0Tzy3yzzDz"
 RecItemText := [
     "|<RecItem1>*120$40.zyzzVszzvzUDtzzbw0zzzzM3bzzzk20zzzk007zzyE01zzzlV0TzzyM23zzzq4kTzzzzrDrzzzznwzzzzzjnzzzzwzTzzzzzzzzzzuDzzzzz1zzzzzsDzzzzy1zzzzznDzzzzw2TzzzzUDzzzzy1zzzzzs7zzzzzUzzzzzy7zzzzzzzzzzzzU",
-    "|<RecItem2>*120$40.zzzz0TzzzzU1zzzzw07zzzzw0zzzzzU7zzzzs2zzzjzqHzzxzyHTzzrzkTzzyTy7zzztzkzzzzy07zzzzk0zzzzy3nzzzzz1Dzzzzg4zzzzydnzzzzsYDzzzznjzzzzzbzzzzzzTzzzzzyDDvzzzszUzzzzDzrzzzvzzzzzzTzzzzzvzzzzzzTzzzzzy",
+    "|<RecItem2>*120$41.zzzz0Tzzzzs0zzzzz01zzzzzU7zzzzy0Tzzzzk5zzzjzqHzzyzz9jzzxzw7zzznzkzzzzbz3zzzzy0DzzzzE0zzzzz1tzzzzzkHzzzzxUbzzzzubDzzzzl1TzzzznzzzzzznzzzzzzrzzzzzltzTzzzXy3zzzyTzjzzzvzzzzzzjzzzzzyzzzzzzvzzzzzzzzzzzzzk",
     "|<RecItem3>*120$40.zzzz1zzzzzsDzzzzz1zzzzztDzzzzy1zzzrzsDzzzTz5zzzwz0bzzzXy3Tzzy/kLzzzkQ8zzzzN0zzzzs0Mjzzzk0Xzzzw02TzzzkU9zzzy0IjzzzsU3jrzzm3glzzz8NMDzzylzdzzznjqzzzxrvLzzzkyDzzzzkHzzzzwzzzzzznzzzzzzzzzzzzy",
     "|<RecItem4>*120$40.zzzw0lvzzw07DDzzy0txzzzk7Tbzzy0vuzzzk3z/zzw0Jrzzzs22xzzq0BFbzyk3/gRzm0nCnrzc/9sTjU0LTnzs8G/zjy1kGTyz0037zzwEUPzzzkE33zzz480zzzx01CzzznUlzzzzK6Dzzzx0lTzzzs2TzzzzU3zzzzw0zzzzzkDzzzzzU3zzzzw0zzzzzkDzzzzz3zzzzzy",
     "|<RecItem5>*120$39.zA0007zts000zyTkM03zny1E0TyTUy01zVy700DwaMk03zUE600TwU0U07zYEA00zyW600TzyEU07zzIa0Rzzvos3zzzSqMvzzvnX3TzzjyMTrzzzz3zzzzzxzzzzzzzzzzzzzxzzzzzzTzzzzzzzzzznzzzzzzzzzzzzzzzzzzzzzzzzzzzzzU",
@@ -231,7 +235,7 @@ RecItemText := [
     "|<RecItem7>*120$39.zzzC7STzy1Uzvz00kDzTm07Hznwk0uPyz40ADDzk03xjxz00yjzzysD5zzzzvnjzzzjQwTzzwXDhzzzWXtzzzwQCTzzzW33zzzw2kznzzUazzzzyljzzzzuBzzzzvkDzzzzDYTjzzvzXzzzyzzzzzzzzzrzzzzzzzzzzzzzzzzzzzzzw",
     "|<RecItem8>*120$39.U001wqv800TfbtC0Dhxz807zzzt017jzzY0zPzjwcTzzyzU7DzzryFrrzzTkyizzzyDzzzzzsxzDzzzbTNzzzyTwDzzztzszzzzbz3zzzzzkDzzzzzUzzzzzw7zzzzzkTzzzztfzzzzxkDzzzzLczzzzvzlzzzzzzzzzzzzzzzzzzzzzzzzzzzU",
     "|<RecItem9>*120$39.zwa0k7zzjw00zztzk07zzTQEIzztuM33zzD76CTzzsUlvzzz0CDTzzs7zvzzzVTjTzzzbynzzzALYzzzvyQLzzzzzXzzzjzwjzzvzzXzzyzzwzzzzzyDzzzzw7zzyzz7zzzzzzzzzvzzzzzyzzzzzzjzzzzzvzzzzzzzzzzzzzzzzzzw",
-    "|<RecItem10>*120$39.zzzzzTzzzyzrzzzxrxzzzzkTTzzzzPrzzzztxzzyPqzTzyaD7rzzsrzxzzz6QTTzzlrvrzzy4zxzzzubzTzzyxzrzzzzrxzzzzyzTzzzzbrzzzzTxzzzz/zTzzzwTrzzzzXzzzzzyzTzzzzrrzzzzztzzzzzzTzzzzzU",
+    "|<RecItem10>*120$40.zzzzzjzzzzjxzzzzizjzzzz1xzzzzyrjzzzztxzzzBvTjzzdXlxzzz6TzjzzwNVxzzzXjrjzzy4zxzzzxHzjzzzbTxzzzzyzjzzzzvxzzzzzDjzzzzTxzzzzZzjzzzz7xzzzzwTjzzzzvxzzzzzjjzzzzyxzzzzztjzzzzzpzzzzzzDzzzzzxzzzzzzzzzzzzzzzzzzzU",
     "|<RecItem11>*120$39.lzu8DyD7zn1xVsXyNDUD4tneQ3wjCylkTjtk697zvj1nazoTwTwzzXzrzbzyzwTwzznTrzDzzBzyPzzwrzqTzzyzzzzzzyyzzzzzrbzzzzyszzzzzz7zzzzztzzzzzzjzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzU",
 ]
 BrightText := "|<Bright>*120$42.U000001000000000000000000000003zk00003zk10401zU20430z0k041UV1U040kS30040MA6E040A0A004060M004030k00001VU00400H0004000000400M000400Q000000S000000n000001VU000030k0000200000040A000000400000040000E06000000000000000000000000400080000000000000000000001U"
