@@ -387,7 +387,7 @@ HelpText := "快捷键说明"
     . "`n「选择桌面」勾选框（在「使用女神的生命水」下面，同一列，默认不勾）：不勾就轮询前 3 个桌面，和以前一样；勾上才按右边下拉框的个数轮，选 1 只轮桌面 1，选 2 轮桌面 1+2，选 3 轮桌面 1+2+3，选 4 轮桌面 1 到 4，轮询从桌面 1 开始累计。下拉框勾上才出现，默认选 3，每次打开脚本回到不勾、不存配置；桌面实际个数不足时按实际个数跑"
     . "`n放映机空转滑鼠标再点一下：某个桌面放映机由在变不在攒够 6 次、期间一次都没点过状态图标，从第 7 次放映机在开始，每次轮询到先把鼠标移到记下的状态图标位置附近滑几下（不点），滑完再找一次暗色：找到了就点它；还是跟前六次一样没找到，也点一下记下的位置；第 7 次那次不守 15 秒有效期；点过一次就重新数 6 次"
     . "`nF12：取点时按它取点（取点成功后 2 秒内按 F12 不起作用，防误触）；「开箱子」运行中按它停止；没运行时按它启动上次点过的模式（刚打开脚本还没点过模式按钮时，按 F12 没反应，第一次必须先点按钮；关掉脚本后上次模式不保留）。单按启动会慢 0.4 秒（要等一下看是不是双击）"
-    . "`n双击 F12（两次按下间隔不到 0.4 秒）：跑回收站那套——先在当前桌面的游戏窗口里找回收站图标点一下，等 0.5 秒，再把 11 张物品图在游戏窗口里各找一遍，找到几个就点几个（每张图之间隔 0.2 秒）。跑的时候轮询最好停着，免得轮询切桌面打断它"
+    . "`n双击 F12（两次按下间隔不到 0.4 秒）：跑回收站那套——先在当前桌面的游戏窗口里找回收站图标点一下，等 0.5 秒，再把 11 张物品图在游戏窗口里各找一遍，找到几个就点几个（每张图之间隔 0.2 秒）。点完之后光标挪到标题栏最左端再检查一秒，发现就再点再检查，1 秒没发现就不找了。跑的时候轮询最好停着，免得轮询切桌面打断它"
     . "`n飘号键（1 左边）：开启 / 关闭「快捷切换」"
     . "`nF1 / F2 / F3：切到桌面 1 / 2 / 3（快捷切换开启时才管用）"
     . "`nF4：回放录制，点按回放 1 次，按住约 2 秒弹出对话框填重复次数（默认 0 = 无限制，填 3 就回放 3 次），回放中再按 F4 立刻停（快捷切换开启时才管用）"
@@ -3118,22 +3118,55 @@ F12SingleFallback() {
     ToggleClickHotkey()
 }
 
+; 在游戏窗口里找一张图还没点过的位置：返回找到的那个点 {mx, my}，
+; 没找到返回 0。ClickedPos 是已经点过的位置数组（所有图共用），
+; 12px 以内的算同一个点过的位置，跳过。
+FindUnclickedItem(Pattern, ClickedPos, X1, Y1, X2, Y2) {
+    global RecycleErr1, RecycleErr0
+    FX := 0
+    FY := 0
+    try {
+        Matches := FindText(&FX, &FY, X1, Y1, X2, Y2, RecycleErr1, RecycleErr0, Pattern)
+    } catch {
+        return 0
+    }
+    for M in Matches {
+        Done := false
+        for P in ClickedPos {
+            if (Abs(M.mx - P[1]) <= 12 && Abs(M.my - P[2]) <= 12) {
+                Done := true
+                break
+            }
+        }
+        if (!Done) {
+            return M
+        }
+    }
+    return 0
+}
+
 ; 双击 F12 跑的回收站那套：在当前桌面的游戏窗口里找回收站图标
 ; 点一下，等 0.5 秒，再把 11 张物品图在游戏窗口里各找一遍。
 ; 每张图可能是 0 张、1 张或多张，每张都要找到点到：所以每张图
 ; 不是只找一次，而是循环找——找到一个点一个，点完重新找（新
-; 截屏），直到找不到没点过的为止。点过的坐标记下来，重新找到
-; 同一个位置（12px 以内）就跳过它找下一个；都点过了就换下一张
-; 图。一张都没找到就直接换下一张，不报错。顺序：1 号图到 11 号
-; 图，每张图内部按 FindText 返回的顺序（从上往下、从左往右）。
-; 每点一张图等 0.2 秒，每张图最多点 50 个（防死循环）。
+; 截屏），直到找不到没点过的为止。点过的坐标都记在 ClickedPos
+; 里（11 张图共用），重新找到同一个位置（12px 以内）就跳过它
+; 找下一个；都点过了就换下一张图。一张都没找到就直接换下一张，
+; 不报错。顺序：1 号图到 11 号图，每张图内部按 FindText 返回的
+; 顺序（从上往下、从左往右）。每点一张图等 0.2 秒，每张图最多
+; 点 50 个（防死循环）。
+; 全部点完之后再扫一遍：光标挪到轮询停放的位置（游戏窗口标题栏
+; 最左端，和点完状态图标停的地方一样），再检查一秒；发现就再点
+; 再检查；放在游戏左上角 1 秒后还是没有发现，就不找了。挪光标
+; 是因为光标停在刚点过的地方会盖住下面的图，挪开再找才找得到。
+; 最多扫 20 轮（防死循环）。
 ; 全程不弹提示：ToolTip 会盖住游戏画面、挡住后面的图，还可能
 ; 留到下一次跑的时候继续挡，所以只记日志不弹提示；开头先清掉
 ; 屏幕上可能还留着的旧提示。跑的时候轮询最好停着，免得轮询切
 ; 桌面打断它。游戏窗口没找到、回收站没找到，就不跑了（只记日志）。
 RunRecycleSequence() {
     global GameWinX, GameWinY, GameWinW, GameWinH
-    global RecycleBinText, RecItemText, RecycleErr1, RecycleErr0
+    global RecycleBinText, RecItemText
     global RecycleGapMs, RecycleItemGapMs
     ToolTip()
     if (!ActivateGameByTitle()) {
@@ -3154,40 +3187,54 @@ RunRecycleSequence() {
     LogFind("recycle: clicked recycle bin at (" BX "," BY ")")
     Sleep(RecycleGapMs)
     Clicked := 0
+    ClickedPos := []
     for N, Pattern in RecItemText {
-        ClickedPos := []
+        Count := 0
         Loop 50 {
-            FX := 0
-            FY := 0
-            try {
-                Matches := FindText(&FX, &FY, X1, Y1, X2, Y2, RecycleErr1, RecycleErr0, Pattern)
-            } catch {
-                break
-            }
-            Target := 0
-            for M in Matches {
-                Done := false
-                for P in ClickedPos {
-                    if (Abs(M.mx - P[1]) <= 12 && Abs(M.my - P[2]) <= 12) {
-                        Done := true
-                        break
-                    }
-                }
-                if (!Done) {
-                    Target := M
-                    break
-                }
-            }
+            Target := FindUnclickedItem(Pattern, ClickedPos, X1, Y1, X2, Y2)
             if (!Target) {
                 break
             }
             Click(Target.mx, Target.my)
             Clicked++
+            Count++
             ClickedPos.Push([Target.mx, Target.my])
             LogFind("recycle: clicked item " N " at (" Target.mx "," Target.my ")")
             Sleep(RecycleItemGapMs)
         }
-        LogFind("recycle: item " N " done, clicked " ClickedPos.Length)
+        LogFind("recycle: item " N " done, clicked " Count)
+    }
+    SweepRounds := 0
+    Loop {
+        SweepRounds++
+        if (SweepRounds > 20) {
+            LogFind("recycle: sweep stopped after 20 rounds")
+            break
+        }
+        MouseMove(GameWinX + 8, GameWinY + 12, 5)
+        SweepStart := A_TickCount
+        FoundAny := false
+        while (A_TickCount - SweepStart < 1000) {
+            for N, Pattern in RecItemText {
+                Target := FindUnclickedItem(Pattern, ClickedPos, X1, Y1, X2, Y2)
+                if (Target) {
+                    Click(Target.mx, Target.my)
+                    Clicked++
+                    ClickedPos.Push([Target.mx, Target.my])
+                    LogFind("recycle: sweep clicked item " N " at (" Target.mx "," Target.my ")")
+                    Sleep(RecycleItemGapMs)
+                    FoundAny := true
+                    break
+                }
+            }
+            if (FoundAny) {
+                break
+            }
+            Sleep(100)
+        }
+        if (!FoundAny) {
+            break
+        }
     }
     LogFind("recycle: done, clicked " Clicked " item icons total")
 }
