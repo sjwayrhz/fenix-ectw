@@ -206,6 +206,34 @@ ProjErr0 := 0.2
 ; 等待搜索（登陆按钮、确认按钮、输入按钮）还在用它，别跟着变。
 IconErr1 := 0.2
 IconErr0 := 0.2
+; 双击 F12 的回收站那套用的图案（2026-11-19）：先点游戏里的回收
+; 站图标，再依次点 11 张物品图。来源：recycle_bin.jpg（她发的
+; 回收站截图，23x25）、picture.zip 里的 11 张物品图（39-40x27-28），
+; 原图存在 images/ 里，图案用 tools/digitlab/gen_recycle_patterns.py
+; 生成（阈值 120，和状态图标一样）。容错 0.2：11 张图两两之间最
+; 接近的一对（4 号对 6 号）按类算错也还有 0.446，远高于 0.2，
+; 不会认错成别的图；回收站和物品图之间最近也有 0.523。
+; 阈值 150 时最接近的一对只剩 0.146，太近不能用，所以定 120。
+RecycleErr1 := 0.2
+RecycleErr0 := 0.2
+F12DoubleMs := 400   ; 双击 F12 的判定：两次按下间隔不到 400ms 算双击
+F12FirstTick := 0    ; 第一次按 F12 的时刻（A_TickCount，0=没在等第二次按）
+RecycleGapMs := 500  ; 点完回收站、开始点物品图之前等的毫秒数（0.5 秒）
+RecycleItemGapMs := 200 ; 每点一张物品图之后等的毫秒数
+RecycleBinText := "|<RecycleBin>*120$23.zXzby0Tbl07b701sy00nw01bs033k0D001y006w00Ns01ns077k0ATU0Mz00Vy013w027s00Ts00zk01zk07zs0Tzy3yzzDz"
+RecItemText := [
+    "|<RecItem1>*120$40.zyzzVszzvzUDtzzbw0zzzzM3bzzzk20zzzk007zzyE01zzzlV0TzzyM23zzzq4kTzzzzrDrzzzznwzzzzzjnzzzzwzTzzzzzzzzzzuDzzzzz1zzzzzsDzzzzy1zzzzznDzzzzw2TzzzzUDzzzzy1zzzzzs7zzzzzUzzzzzy7zzzzzzzzzzzzU",
+    "|<RecItem2>*120$40.zzzz0TzzzzU1zzzzw07zzzzw0zzzzzU7zzzzs2zzzjzqHzzxzyHTzzrzkTzzyTy7zzztzkzzzzy07zzzzk0zzzzy3nzzzzz1Dzzzzg4zzzzydnzzzzsYDzzzznjzzzzzbzzzzzzTzzzzzyDDvzzzszUzzzzDzrzzzvzzzzzzTzzzzzvzzzzzzTzzzzzy",
+    "|<RecItem3>*120$40.zzzz1zzzzzsDzzzzz1zzzzztDzzzzy1zzzrzsDzzzTz5zzzwz0bzzzXy3Tzzy/kLzzzkQ8zzzzN0zzzzs0Mjzzzk0Xzzzw02TzzzkU9zzzy0IjzzzsU3jrzzm3glzzz8NMDzzylzdzzznjqzzzxrvLzzzkyDzzzzkHzzzzwzzzzzznzzzzzzzzzzzzy",
+    "|<RecItem4>*120$40.zzzw0lvzzw07DDzzy0txzzzk7Tbzzy0vuzzzk3z/zzw0Jrzzzs22xzzq0BFbzyk3/gRzm0nCnrzc/9sTjU0LTnzs8G/zjy1kGTyz0037zzwEUPzzzkE33zzz480zzzx01CzzznUlzzzzK6Dzzzx0lTzzzs2TzzzzU3zzzzw0zzzzzkDzzzzzU3zzzzw0zzzzzkDzzzzz3zzzzzy",
+    "|<RecItem5>*120$39.zA0007zts000zyTkM03zny1E0TyTUy01zVy700DwaMk03zUE600TwU0U07zYEA00zyW600TzyEU07zzIa0Rzzvos3zzzSqMvzzvnX3TzzjyMTrzzzz3zzzzzxzzzzzzzzzzzzzxzzzzzzTzzzzzzzzzznzzzzzzzzzzzzzzzzzzzzzzzzzzzzzU",
+    "|<RecItem6>*120$40.zzzpXQnzzyc1qDzzplqszzyA7v7zzm058zzzM2/7zzzsxMjzzC6f3zz3UtMHzuD7Xezu00T9TzU0Zw1zw10T57zVU3w5zsA4zUdz3kXy1Tzz0Mc3zz00glzzc0AjDzx02Dzzzk0Dxzzz00wzzzzUZ/zzzwBTPzzzq7yLzzz0Xyzzzz0znzzzU",
+    "|<RecItem7>*120$39.zzzC7STzy1Uzvz00kDzTm07Hznwk0uPyz40ADDzk03xjxz00yjzzysD5zzzzvnjzzzjQwTzzwXDhzzzWXtzzzwQCTzzzW33zzzw2kznzzUazzzzyljzzzzuBzzzzvkDzzzzDYTjzzvzXzzzyzzzzzzzzzrzzzzzzzzzzzzzzzzzzzzzw",
+    "|<RecItem8>*120$39.U001wqv800TfbtC0Dhxz807zzzt017jzzY0zPzjwcTzzyzU7DzzryFrrzzTkyizzzyDzzzzzsxzDzzzbTNzzzyTwDzzztzszzzzbz3zzzzzkDzzzzzUzzzzzw7zzzzzkTzzzztfzzzzxkDzzzzLczzzzvzlzzzzzzzzzzzzzzzzzzzzzzzzzzzU",
+    "|<RecItem9>*120$39.zwa0k7zzjw00zztzk07zzTQEIzztuM33zzD76CTzzsUlvzzz0CDTzzs7zvzzzVTjTzzzbynzzzALYzzzvyQLzzzzzXzzzjzwjzzvzzXzzyzzwzzzzzyDzzzzw7zzyzz7zzzzzzzzzvzzzzzyzzzzzzjzzzzzvzzzzzzzzzzzzzzzzzzw",
+    "|<RecItem10>*120$39.zzzzzTzzzyzrzzzxrxzzzzkTTzzzzPrzzzztxzzyPqzTzyaD7rzzsrzxzzz6QTTzzlrvrzzy4zxzzzubzTzzyxzrzzzzrxzzzzyzTzzzzbrzzzzTxzzzz/zTzzzwTrzzzzXzzzzzyzTzzzzrrzzzzztzzzzzzTzzzzzU",
+    "|<RecItem11>*120$39.lzu8DyD7zn1xVsXyNDUD4tneQ3wjCylkTjtk697zvj1nazoTwTwzzXzrzbzyzwTwzznTrzDzzBzyPzzwrzqTzzyzzzzzzyyzzzzzrbzzzzyszzzzzz7zzzzztzzzzzzjzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzU",
+]
 BrightText := "|<Bright>*120$42.U000001000000000000000000000003zk00003zk10401zU20430z0k041UV1U040kS30040MA6E040A0A004060M004030k00001VU00400H0004000000400M000400Q000000S000000n000001VU000030k0000200000040A000000400000040000E06000000000000000000000000400080000000000000000000001U"
 ; 暗版图标不用整图图案，改用左右两条长条（2026-11-07 她定的方案）：
 ; 图标中间的计数数字会变（3/50、10/50…），整图图案被数字拖累，
@@ -358,7 +386,8 @@ HelpText := "快捷键说明"
     . "`n「使用女神的生命水」勾选框（在轮询启停键按钮的右边，勾上才生效）：轮询到某个桌面没找到放映机图标、且这个桌面还没用过生命水，就按一次 F9 并记为已用过；之后再轮询到还是没放映机，不再按；等轮询到这个桌面又有放映机了，标记改回未用过，下次没放映机时再按 F9。各桌面各记各的。勾选框右边的下拉框（勾上勾选框后才出现）是冷却分钟数：某个桌面按过 F9 后，选定的分钟数内不再考虑给它按 F9，时间到了、放映机还不在就再按一次；选 0 是不设冷却，和没有这个下拉框一样；选「不使用」等于没勾这个勾选框"
     . "`n「选择桌面」勾选框（在「使用女神的生命水」下面，同一列，默认不勾）：不勾就轮询前 3 个桌面，和以前一样；勾上才按右边下拉框的个数轮，选 1 只轮桌面 1，选 2 轮桌面 1+2，选 3 轮桌面 1+2+3，选 4 轮桌面 1 到 4，轮询从桌面 1 开始累计。下拉框勾上才出现，默认选 3，每次打开脚本回到不勾、不存配置；桌面实际个数不足时按实际个数跑"
     . "`n放映机空转滑鼠标再点一下：某个桌面放映机由在变不在攒够 6 次、期间一次都没点过状态图标，从第 7 次放映机在开始，每次轮询到先把鼠标移到记下的状态图标位置附近滑几下（不点），滑完再找一次暗色：找到了就点它；还是跟前六次一样没找到，也点一下记下的位置；第 7 次那次不守 15 秒有效期；点过一次就重新数 6 次"
-    . "`nF12：取点时按它取点（取点成功后 2 秒内按 F12 不起作用，防误触）；「开箱子」运行中按它停止；没运行时按它启动上次点过的模式（刚打开脚本还没点过模式按钮时，按 F12 没反应，第一次必须先点按钮；关掉脚本后上次模式不保留）"
+    . "`nF12：取点时按它取点（取点成功后 2 秒内按 F12 不起作用，防误触）；「开箱子」运行中按它停止；没运行时按它启动上次点过的模式（刚打开脚本还没点过模式按钮时，按 F12 没反应，第一次必须先点按钮；关掉脚本后上次模式不保留）。单按启动会慢 0.4 秒（要等一下看是不是双击）"
+    . "`n双击 F12（两次按下间隔不到 0.4 秒）：跑回收站那套——先在当前桌面的游戏窗口里找回收站图标点一下，等 0.5 秒，再把 11 张物品图在游戏窗口里各找一遍，找到几个就点几个（每张图之间隔 0.2 秒）。跑的时候轮询最好停着，免得轮询切桌面打断它"
     . "`n飘号键（1 左边）：开启 / 关闭「快捷切换」"
     . "`nF1 / F2 / F3：切到桌面 1 / 2 / 3（快捷切换开启时才管用）"
     . "`nF4：回放录制，点按回放 1 次，按住约 2 秒弹出对话框填重复次数（默认 0 = 无限制，填 3 就回放 3 次），回放中再按 F4 立刻停（快捷切换开启时才管用）"
@@ -3047,15 +3076,20 @@ PinCellContested(CX, CY, SelfD) {
 
 ; ===== 快捷键 =====
 ; F11 = 桌面轮询 开启 / 停止（再启动从桌面 1 重新开始）
-; F12 = 取点时是取点键；平时是开箱子 开启 / 停止（开启时用上次的模式）
+; F12 = 取点时是取点键；平时是开箱子 开启 / 停止（开启时用上次的模式）；
+; 双击（两次按下间隔不到 0.4 秒）跑回收站那套，见 RunRecycleSequence
 F11::ToggleDesktop()
 F12::F12Handler()
 SC029::ToggleQuickSwitch()
 
 ; F12 的分工：取点成功后的 2 秒内按了没反应（防误触）；
-; 正在取点就取点；否则当开箱子的开关用。
+; 正在取点就取点；开箱子运行中按它立刻停止（不走双击判断）；
+; 其他时候第一次按先等 400ms：400ms 内又按一次就是双击，走
+; 回收站那套（RunRecycleSequence）；400ms 内没按第二次，
+; 才按原来的单按走（开箱子开关）。所以单按 F12 启动开箱子
+; 会慢 0.4 秒。
 F12Handler() {
-    global CaptureTarget, CaptureTick
+    global CaptureTarget, CaptureTick, ClickMode, F12FirstTick, F12DoubleMs
     if (CaptureTick && A_TickCount - CaptureTick < 2000) {
         return
     }
@@ -3063,7 +3097,76 @@ F12Handler() {
         FinishCapture()
         return
     }
+    if (ClickMode != "") {
+        ToggleClickHotkey()
+        return
+    }
+    if (F12FirstTick = 0) {
+        F12FirstTick := A_TickCount
+        SetTimer(F12SingleFallback, -F12DoubleMs)
+        return
+    }
+    F12FirstTick := 0
+    SetTimer(F12SingleFallback, 0)
+    RunRecycleSequence()
+}
+
+; 第一次按 F12 后 400ms 内没按第二次：就是单按，按原来的走。
+F12SingleFallback() {
+    global F12FirstTick
+    F12FirstTick := 0
     ToggleClickHotkey()
+}
+
+; 双击 F12 跑的回收站那套：在当前桌面的游戏窗口里找回收站图标
+; 点一下，等 0.5 秒，再把 11 张物品图在游戏窗口里各找一遍，
+; 找到几个就点几个（每张图可能出现多次，找到的都点；一张都没
+; 找到就跳过，不报错）。顺序：1 号图到 11 号图，每张图内部按
+; FindText 返回的顺序（从上往下、从左往右）。每点一张图等
+; 0.2 秒。游戏窗口没找到、回收站没找到，就不跑了（记日志、
+; 弹个提示）。跑的时候轮询最好停着，免得轮询切桌面打断它。
+RunRecycleSequence() {
+    global GameWinX, GameWinY, GameWinW, GameWinH
+    global RecycleBinText, RecItemText, RecycleErr1, RecycleErr0
+    global RecycleGapMs, RecycleItemGapMs
+    if (!ActivateGameByTitle()) {
+        LogFind("recycle: no game window on this desktop, abort")
+        ToolTip("没找到当前桌面的游戏窗口，回收站那套没跑")
+        return
+    }
+    X1 := GameWinX
+    Y1 := GameWinY
+    X2 := GameWinX + GameWinW
+    Y2 := GameWinY + GameWinH
+    BX := 0
+    BY := 0
+    if (!FindPattern(RecycleBinText, X1, Y1, X2, Y2, &BX, &BY, RecycleErr1, RecycleErr0)) {
+        LogFind("recycle: recycle bin not found, abort")
+        ToolTip("没找到回收站图标，没跑")
+        return
+    }
+    Click(BX, BY)
+    LogFind("recycle: clicked recycle bin at (" BX "," BY ")")
+    ToolTip("点完回收站，等 0.5 秒开始点图片…")
+    Sleep(RecycleGapMs)
+    Clicked := 0
+    for N, Pattern in RecItemText {
+        FX := 0
+        FY := 0
+        try {
+            Matches := FindText(&FX, &FY, X1, Y1, X2, Y2, RecycleErr1, RecycleErr0, Pattern)
+        } catch {
+            continue
+        }
+        for M in Matches {
+            Click(M.mx, M.my)
+            Clicked++
+            LogFind("recycle: clicked item " N " at (" M.mx "," M.my ")")
+            Sleep(RecycleItemGapMs)
+        }
+    }
+    LogFind("recycle: done, clicked " Clicked " item icons")
+    ToolTip("回收站那套跑完了，点了 " Clicked " 张图")
 }
 
 ; 取点时按 Esc 取消（只在取点期间生效）
