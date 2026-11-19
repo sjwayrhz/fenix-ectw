@@ -3119,19 +3119,25 @@ F12SingleFallback() {
 }
 
 ; 双击 F12 跑的回收站那套：在当前桌面的游戏窗口里找回收站图标
-; 点一下，等 0.5 秒，再把 11 张物品图在游戏窗口里各找一遍，
-; 找到几个就点几个（每张图可能出现多次，找到的都点；一张都没
-; 找到就跳过，不报错）。顺序：1 号图到 11 号图，每张图内部按
-; FindText 返回的顺序（从上往下、从左往右）。每点一张图等
-; 0.2 秒。游戏窗口没找到、回收站没找到，就不跑了（记日志、
-; 弹个提示）。跑的时候轮询最好停着，免得轮询切桌面打断它。
+; 点一下，等 0.5 秒，再把 11 张物品图在游戏窗口里各找一遍。
+; 每张图可能是 0 张、1 张或多张，每张都要找到点到：所以每张图
+; 不是只找一次，而是循环找——找到一个点一个，点完重新找（新
+; 截屏），直到找不到没点过的为止。点过的坐标记下来，重新找到
+; 同一个位置（12px 以内）就跳过它找下一个；都点过了就换下一张
+; 图。一张都没找到就直接换下一张，不报错。顺序：1 号图到 11 号
+; 图，每张图内部按 FindText 返回的顺序（从上往下、从左往右）。
+; 每点一张图等 0.2 秒，每张图最多点 50 个（防死循环）。
+; 全程不弹提示：ToolTip 会盖住游戏画面、挡住后面的图，还可能
+; 留到下一次跑的时候继续挡，所以只记日志不弹提示；开头先清掉
+; 屏幕上可能还留着的旧提示。跑的时候轮询最好停着，免得轮询切
+; 桌面打断它。游戏窗口没找到、回收站没找到，就不跑了（只记日志）。
 RunRecycleSequence() {
     global GameWinX, GameWinY, GameWinW, GameWinH
     global RecycleBinText, RecItemText, RecycleErr1, RecycleErr0
     global RecycleGapMs, RecycleItemGapMs
+    ToolTip()
     if (!ActivateGameByTitle()) {
         LogFind("recycle: no game window on this desktop, abort")
-        ToolTip("没找到当前桌面的游戏窗口，回收站那套没跑")
         return
     }
     X1 := GameWinX
@@ -3142,31 +3148,48 @@ RunRecycleSequence() {
     BY := 0
     if (!FindPattern(RecycleBinText, X1, Y1, X2, Y2, &BX, &BY, RecycleErr1, RecycleErr0)) {
         LogFind("recycle: recycle bin not found, abort")
-        ToolTip("没找到回收站图标，没跑")
         return
     }
     Click(BX, BY)
     LogFind("recycle: clicked recycle bin at (" BX "," BY ")")
-    ToolTip("点完回收站，等 0.5 秒开始点图片…")
     Sleep(RecycleGapMs)
     Clicked := 0
     for N, Pattern in RecItemText {
-        FX := 0
-        FY := 0
-        try {
-            Matches := FindText(&FX, &FY, X1, Y1, X2, Y2, RecycleErr1, RecycleErr0, Pattern)
-        } catch {
-            continue
-        }
-        for M in Matches {
-            Click(M.mx, M.my)
+        ClickedPos := []
+        Loop 50 {
+            FX := 0
+            FY := 0
+            try {
+                Matches := FindText(&FX, &FY, X1, Y1, X2, Y2, RecycleErr1, RecycleErr0, Pattern)
+            } catch {
+                break
+            }
+            Target := 0
+            for M in Matches {
+                Done := false
+                for P in ClickedPos {
+                    if (Abs(M.mx - P[1]) <= 12 && Abs(M.my - P[2]) <= 12) {
+                        Done := true
+                        break
+                    }
+                }
+                if (!Done) {
+                    Target := M
+                    break
+                }
+            }
+            if (!Target) {
+                break
+            }
+            Click(Target.mx, Target.my)
             Clicked++
-            LogFind("recycle: clicked item " N " at (" M.mx "," M.my ")")
+            ClickedPos.Push([Target.mx, Target.my])
+            LogFind("recycle: clicked item " N " at (" Target.mx "," Target.my ")")
             Sleep(RecycleItemGapMs)
         }
+        LogFind("recycle: item " N " done, clicked " ClickedPos.Length)
     }
-    LogFind("recycle: done, clicked " Clicked " item icons")
-    ToolTip("回收站那套跑完了，点了 " Clicked " 张图")
+    LogFind("recycle: done, clicked " Clicked " item icons total")
 }
 
 ; 取点时按 Esc 取消（只在取点期间生效）
