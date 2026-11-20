@@ -57,7 +57,8 @@ DetectHiddenWindows(true)
 ;        不按 F；未知图标按 F、按 X、不点图标；放映机图标在、并且
 ;        状态图标是暗色，才按 F、按 X、点状态图标一下，尝试帮它
 ;        变亮色。放映机图标不在，就只按 F，不按 X、不点。一直重复。
-;        所有桌面都按 X（2026-11-16 她改的，以前桌面1不按）。
+;        只在桌面 2 和桌面 4 上按 X（2026-11-20 她改的，桌面 1 和桌面 3 不按；
+;        2026-11-16 那次是所有桌面都按）。
 ;      没有暂停按钮：F11（或点「启停键 F11」按钮）就是停止
 ;      （再启动从桌面 1 重新开始）。
 ;   2. 开箱子（两点点击 + 右键点击合并）：
@@ -574,8 +575,8 @@ if (DesktopCount >= 1) {
 
 ; ===== 功能 1：桌面轮询 =====
 ; F11 或点按钮启动：一直轮询，直到再按 F11 或再点按钮停掉。
-; 轮询时每轮按 F；放映机图标在、且连续在超过 15 秒，才按 X；放映机图标在、
-; 并且状态图标是暗色，才点状态图标一下，尝试变亮色；未知图标不点。
+; 轮询时每轮按 F；放映机图标在、且连续在超过 15 秒、桌面是 2/4，才按 X；
+; 放映机图标在、并且状态图标是暗色，才点状态图标一下，尝试变亮色；未知图标不点。
 ; 三个功能互斥：同一时间只能跑一个。启动哪个功能，就先停掉另外两个；
 ; 以后加新功能也按这个规矩——启动时停掉其他所有功能。
 StopDesktopPolling() {
@@ -665,7 +666,7 @@ StartCyclePhase(NewPhase) {
     DesktopNext := 0
     CurrentDesktop := 0
     ToolTip()
-    txtDesktopStatus.Text := "状态：轮询中（放映机连续在 15 秒后才按 X，暗色才点状态图标，未知不点，轮询前" PollDesktopCount "个桌面）"
+    txtDesktopStatus.Text := "状态：轮询中（桌面 2/4 上放映机连续在 15 秒后才按 X，暗色才点状态图标，未知不点，轮询前" PollDesktopCount "个桌面）"
 }
 
 ; 把一次找到的结果记到脚本同目录的 fenix_Find_Log.txt，
@@ -1160,11 +1161,12 @@ StepDesktop() {
     }
 }
 
-; 按 X 的总闸：所有桌面都按 X（2026-11-16 她改的，以前桌面1
-; 永远不按）。轮询里所有按 X 的地方都走这个函数，改规矩只改这里。
+; 按 X 的总闸：只在桌面 2 和桌面 4 上按 X（2026-11-20 她改的，
+; 其他桌面不按；2026-11-16 那次是所有桌面都按）。轮询里所有按 X
+; 的地方都走这个函数，改规矩只改这里。
 ; 还要守一条：放映机由不在变在后的前 15 秒内不按 X，连续在超过
 ; 15 秒、到下次变不在之前，才可以按 X。见 XPressAllowed。
-; 返回 true = 真的按了；false = 没按（15 秒内）。
+; 返回 true = 真的按了；false = 没按（桌面不是 2/4，或 15 秒内）。
 PressPollX(Idx) {
     global DesktopKey2
     if (!XPressAllowed(Idx)) {
@@ -1177,9 +1179,13 @@ PressPollX(Idx) {
 ; 放映机连续在超过 15 秒，才可以按 X：由不在变在后的前 15 秒内
 ; 不按 X；15 秒之后、到下次变不在之前，可以按 X。和暗色点击的
 ; 15 秒有效期正好反过来（暗色是前 15 秒内可以点）。只看放映机
-; 的连续在。
+; 的连续在。另外只在桌面 2 和桌面 4 上按 X（2026-11-20 她改的，
+; 其他桌面不按；桌面 2 或桌面 4 不存在时，轮询轮不到它，就不按）。
 XPressAllowed(Idx) {
     global ProjYesTick, DarkClickWindowMs
+    if (Idx != 2 && Idx != 4) {
+        return false
+    }
     while (ProjYesTick.Length < Idx) {
         ProjYesTick.Push(0)
     }
@@ -1190,12 +1196,20 @@ XPressAllowed(Idx) {
     return (A_TickCount - Tick > DarkClickWindowMs)
 }
 
+; X 没按的原因（只给提示和日志用）：桌面不是 2/4，还是在 15 秒内。
+XNoReason(Idx) {
+    if (Idx != 2 && Idx != 4) {
+        return "no X (X only on desktop 2/4)"
+    }
+    return "no X (within 15s)"
+}
+
 ; 轮询检查：每轮到一个桌面就先找状态图标、最后找放映机图标
 ; （放映机在不在是点不点、按不按 X 的判断底子，最后搜最新），
 ; 再按下面规则做。三种状态：暗色（暗版图案找到）、未知
 ; （未知图案找到）、非暗色（亮版图案找到）；都没找到就是
 ; 状态没找到（not found）。
-; 所有桌面都按 X（走 PressPollX 总闸）。
+; 只在桌面 2 和桌面 4 上按 X（走 PressPollX 总闸）。
 ;   1. 放映机图标在、并且是非暗色：只按 X，不按 F，不点。
 ;      （按 X 的 15 秒规矩：放映机由不在变在后的前 15 秒内不按
 ;      X，连续在超过 15 秒才按。见 XPressAllowed。）
@@ -1297,10 +1311,10 @@ MainCheckStep() {
                 }
             }
             if (NowBright) {
-                ; 点完变非暗色：只按 X，不按 F（前 15 秒内不按 X）。
+                ; 点完变非暗色：只按 X，不按 F（桌面 2/4 才按，前 15 秒内不按 X）。
                 Pressed := PressPollX(Idx)
-                LogFind("D" Idx " dark clicked, now non-dark, " (Pressed ? "X only, no F" : "no X (within 15s), no F"))
-                ToolTip("Desktop " Idx ": dark clicked, now non-dark, " (Pressed ? "X only, no F" : "no X (within 15s), no F"))
+                LogFind("D" Idx " dark clicked, now non-dark, " (Pressed ? "X only, no F" : XNoReason(Idx) ", no F"))
+                ToolTip("Desktop " Idx ": dark clicked, now non-dark, " (Pressed ? "X only, no F" : XNoReason(Idx) ", no F"))
                 ApplyLifeWaterRule(Idx)
                 DesktopPhase := "switch"
                 SetTimer(StepDesktop, DesktopWaitMs)
@@ -1332,15 +1346,15 @@ MainCheckStep() {
         }
     }
     if (ProjFound && !DarkFound && !UnknownFound && !CheckStatusNotFound) {
-        ; 放映机图标在、并且是非暗色（亮色）：只按 X，不按 F，不点（前 15 秒内不按 X）。
+        ; 放映机图标在、并且是非暗色（亮色）：只按 X，不按 F，不点（桌面 2/4 才按，前 15 秒内不按 X）。
         Pressed := PressPollX(Idx)
-        ToolTip("Desktop " Idx ": projector yes, non-dark, " (Pressed ? "X only, no F, no click" : "no X (within 15s), no F, no click"))
+        ToolTip("Desktop " Idx ": projector yes, non-dark, " (Pressed ? "X only, no F, no click" : XNoReason(Idx) ", no F, no click"))
         ApplyLifeWaterRule(Idx)
         DesktopPhase := "switch"
         SetTimer(StepDesktop, DesktopWaitMs)
         return
     }
-    ; 暗色、未知、状态没找到：按 F，约 0.05 秒后到 pressX 步（放映机图标在、且连续在超过 15 秒，才按 X）。
+    ; 暗色、未知、状态没找到：按 F，约 0.05 秒后到 pressX 步（放映机图标在、且连续在超过 15 秒、桌面是 2/4，才按 X）。
     Send(DesktopKey)
     DesktopPhase := "pressX"
     SetTimer(StepDesktop, KeyGapMs)
@@ -1462,7 +1476,7 @@ ApplyLifeWaterRule(Idx) {
 }
 
 ; 按 X（轮询检查的下一步，约 0.05 秒后）。
-; 放映机图标在、且连续在超过 15 秒，才按 X（走 PressPollX 总闸）。暗色已经
+; 放映机图标在、且连续在超过 15 秒、桌面是 2/4，才按 X（走 PressPollX 总闸）。暗色已经
 ; 在检查步发现就马上点过了，这里不再点；未知和状态没找到都不点。
 PressXStep() {
     global CurrentDesktop, DesktopPhase, DesktopWaitMs, CheckProjFound
@@ -1475,8 +1489,8 @@ PressXStep() {
         SetTimer(StepDesktop, DesktopWaitMs)
         return
     }
-    Pressed := PressPollX(Idx)   ; 放映机图标在、且连续在超过 15 秒，才按 X
-    ToolTip("Desktop " Idx (Pressed ? ": projector yes, X pressed" : ": projector yes, no X (within 15s)"))
+    Pressed := PressPollX(Idx)   ; 放映机图标在、且连续在超过 15 秒、桌面是 2/4，才按 X
+    ToolTip("Desktop " Idx (Pressed ? ": projector yes, X pressed" : ": projector yes, " XNoReason(Idx)))
     ApplyLifeWaterRule(Idx)
     DesktopPhase := "switch"
     SetTimer(StepDesktop, DesktopWaitMs)
