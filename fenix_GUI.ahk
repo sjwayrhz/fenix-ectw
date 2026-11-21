@@ -72,13 +72,13 @@ DetectHiddenWindows(true)
 ;      三个按钮互斥：点另一个会先停掉当前模式再启动新模式；
 ;      再点一次正在运行的按钮就是停止。
 ;   4. 账号登陆（没有快捷键，只能点按钮）：
-;      三个短下拉框一个桌面一个（桌面1/2/3），每个框里是 accounts
+;      四个短下拉框一个桌面一个（桌面1/2/3/4），每个框里是 accounts
 ;      文件夹里已保存的账号（一个账号一个 .txt，文件名就是账号名，
 ;      第 1 行是登陆密码，第 2 行是二次密码），只能选、不能输；
 ;      每个框最后一行是空行，选空行 = 这个桌面不登陆。
-;      同一排右边三个按钮：新增（弹对话框填账号、密码、二次密码，三个都填好
+;      选择框下面一排三个按钮：新增（弹对话框填账号、密码、二次密码，三个都填好
 ;      点保存才写入 accounts\账号名.txt）、登陆、删除（删桌面1框里选中的账号）。
-;      点登陆：窗口最小化 -> 按桌面 1→2→3 依次切桌面、激活该桌面的
+;      点登陆：窗口最小化 -> 按桌面 1→2→3→4 依次切桌面、激活该桌面的
 ;      Atlantica Online Fenix 客户端 ->
 ;      FindText 找 Login 按钮 -> 点账号框输账号 -> Tab -> 输密码 ->
 ;      点 Login -> 等待：出现二次密码界面就点密码框、用 FindText
@@ -398,17 +398,17 @@ HelpText := "快捷键说明"
     . "`nF5：回放录制，点按回放 1 次，按住约 2 秒弹出对话框填重复次数（默认 0 = 无限制，填 3 就回放 3 次），回放中再按 F5 立刻停（快捷切换开启时才管用）"
     . "`nF6：开始 / 停止录制，回放中按 F6 也立刻停（快捷切换开启时才管用）"
     . "`nEsc：取点时取消；账号登陆进行中按 Esc 取消登陆"
-    . "`n功能 4「账号登陆」没有快捷键：桌面1/2/3 三个下拉框各选一个已保存的账号（只能选不能输），每个框最后一行是空行、选空行就是这个桌面不登陆；两个框选了同一个账号，点「登陆」会弹窗拦下，不允许重复登陆；点「登陆」按桌面1→2→3 依次登陆选了账号的桌面（切过去后先核对桌面号，没切成会跳过那个桌面、并在最后的汇总里报错，不会在错桌面上登陆），自动完成输账号密码、二次密码、登陆确认，全部登完再依次回到每个登陆过的桌面、把游戏窗口里的「关闭」（英文版是 Close，两个都认）点掉（每个桌面最多找 8 秒，找不到就跳过，登陆时报错跳过的桌面不找；标题右边的「关闭王者日志」勾选框勾上才点，默认勾选，不勾就只登陆不点），最后切回开始时所在的桌面；点「新增」弹对话框，账号、密码、二次密码（只能是数字）都填好点保存，才会存成 accounts 文件夹里的 账号名.txt（第 1 行密码、第 2 行二次密码），不用再去改 txt 文件；「删除」删的是桌面1框里选中的账号"
+    . "`n功能 4「账号登陆」没有快捷键：桌面1/2/3/4 四个下拉框各选一个已保存的账号（只能选不能输），每个框最后一行是空行、选空行就是这个桌面不登陆；两个框选了同一个账号，点「登陆」会弹窗拦下，不允许重复登陆；点「登陆」按桌面1→2→3→4 依次登陆选了账号的桌面（切过去后先核对桌面号，没切成会跳过那个桌面、并在最后的汇总里报错，不会在错桌面上登陆），自动完成输账号密码、二次密码、登陆确认，全部登完再依次回到每个登陆过的桌面、把游戏窗口里的「关闭」（英文版是 Close，两个都认）点掉（每个桌面最多找 8 秒，找不到就跳过，登陆时报错跳过的桌面不找；标题右边的「关闭王者日志」勾选框勾上才点，默认勾选，不勾就只登陆不点），最后切回开始时所在的桌面；点「新增」弹对话框，账号、密码、二次密码（只能是数字）都填好点保存，才会存成 accounts 文件夹里的 账号名.txt（第 1 行密码、第 2 行二次密码），不用再去改 txt 文件；「删除」删的是桌面1框里选中的账号"
     . "`n底部「更新」按钮（没有快捷键）：点一下就在脚本所在文件夹里执行 git pull，有新版本就自动重启脚本让新代码生效；结果显示在账号登陆下面那一行，几秒后自动消失，不弹框"
 ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
     if (HelpShown) {
         txtHelp.Visible := false
-        MyGui.Show("w412 h591")
+        MyGui.Show("w372 h666")
         HelpShown := false
     } else {
         txtHelp.Visible := true
-        MyGui.Show("w732 h591")
+        MyGui.Show("w692 h666")
         HelpShown := true
     }
 }
@@ -416,123 +416,125 @@ ToggleHelp(*) {
 ; ---- 功能 1：桌面轮询 ----
 ; 「选择桌面」在「使用女神的生命水」下面、同一列（x140），
 ; 启停键按钮加高到 65，刚好盖住这两行。
-MyGui.Add("Text", "x10 y10 w360", "1. 桌面轮询 (F11)")
-btnDesktop := MyGui.Add("Button", "x10 y35 w120 h65", "启停键 F11")
+MyGui.Add("Text", "x10 y10 w332", "1. 桌面轮询 (F11)")
+btnDesktop := MyGui.Add("Button", "x10 y35 w110 h65", "启停键 F11")
 btnDesktop.OnEvent("Click", MinimizeAndRun(ToggleDesktop))
-chkLifeWater := MyGui.Add("CheckBox", "x140 y35 w135 h30", "使用女神的生命水")
+chkLifeWater := MyGui.Add("CheckBox", "x128 y35 w135 h30", "使用女神的生命水")
 chkLifeWater.OnEvent("Click", ToggleLifeWaterOptions)
 ; 生命水冷却下拉框：0/5/10 是分钟数，「不使用」等于关掉生命水。
 ; 默认选 0（不设冷却，和没有这个框时一样），每次打开脚本都回到 0，不存配置。
 ; 勾上勾选框才显示下拉框和「分钟」两个字，不勾就藏起来（默认不勾，所以先藏）。
-ddlLifeWater := MyGui.Add("DropDownList", "x285 y35 w55 r4", ["0", "5", "10", "不使用"])
+ddlLifeWater := MyGui.Add("DropDownList", "x266 y35 w55 r4", ["0", "5", "10", "不使用"])
 ddlLifeWater.Value := 1
-txtLifeWaterUnit := MyGui.Add("Text", "x345 y42 w28", "分钟")
+txtLifeWaterUnit := MyGui.Add("Text", "x324 y42 w28", "分钟")
 ddlLifeWater.Visible := false
 txtLifeWaterUnit.Visible := false
 ; 选择桌面下拉框：1/2/3/4 是轮询的桌面个数，从桌面 1 开始累计。
 ; 默认选 3，每次打开脚本都回到不勾、不存配置。
 ; 勾上勾选框才显示下拉框和「个桌面」三个字，不勾就藏起来（默认不勾，所以先藏）。
-chkSelectDesktop := MyGui.Add("CheckBox", "x140 y70 w135 h30", "选择桌面")
+chkSelectDesktop := MyGui.Add("CheckBox", "x128 y70 w80 h30", "选择桌面")
 chkSelectDesktop.OnEvent("Click", ToggleSelectDesktopOptions)
-ddlDesktopCount := MyGui.Add("DropDownList", "x285 y70 w55 r4", ["1", "2", "3", "4"])
+ddlDesktopCount := MyGui.Add("DropDownList", "x266 y70 w55 r4", ["1", "2", "3", "4"])
 ddlDesktopCount.Value := 3
-txtDesktopCountUnit := MyGui.Add("Text", "x345 y77 w55", "个桌面")
+txtDesktopCountUnit := MyGui.Add("Text", "x324 y77 w42", "个桌面")
 ddlDesktopCount.Visible := false
 txtDesktopCountUnit.Visible := false
-txtDesktopStatus := MyGui.Add("Text", "x10 y105 w360", "状态：未运行")
-MyGui.Add("Text", "x10 y125 w392 h2 +0x1000")
+txtDesktopStatus := MyGui.Add("Text", "x10 y105 w332", "状态：未运行")
+MyGui.Add("Text", "x10 y125 w352 h2 +0x1000")
 
 ; ---- 功能 2：开箱子（两点点击 + 右键点击）----
 ; 坐标不用手输数字：点下面三个取点按钮，窗口会最小化，
 ; 把鼠标移到要记录的位置按 F12 取点（有「取点成功」提示），
 ; 按 Esc 取消。取到的坐标不显示在界面上。
-MyGui.Add("Text", "x10 y135 w360", "2. 开箱子 (F12)")
+MyGui.Add("Text", "x10 y135 w332", "2. 开箱子 (F12)")
 MyGui.SetFont("s9")
 btnCapRight := MyGui.Add("Button", "x10 y157 w126 h30", "箱子位置取点F12")
 btnCapRight.OnEvent("Click", (*) => CapturePos(3))
 btnCapP1 := MyGui.Add("Button", "x143 y157 w126 h30", "自动放入取点F12")
 btnCapP1.OnEvent("Click", (*) => CapturePos(1))
-btnCapP2 := MyGui.Add("Button", "x276 y157 w126 h30", "开始精炼取点F12")
+btnCapP2 := MyGui.Add("Button", "x10 y192 w126 h30", "开始精炼取点F12")
 btnCapP2.OnEvent("Click", (*) => CapturePos(2))
 MyGui.SetFont("s10")
-btnBoth := MyGui.Add("Button", "x10 y193 w170 h30", "两种点击同时操作")
+btnBoth := MyGui.Add("Button", "x10 y228 w150 h30", "两种点击同时操作")
 btnBoth.OnEvent("Click", MinimizeAndRun(ToggleBoth))
-btnRightOnly := MyGui.Add("Button", "x188 y193 w104 h30", "抽奖")
+btnRightOnly := MyGui.Add("Button", "x168 y228 w80 h30", "抽奖")
 btnRightOnly.OnEvent("Click", MinimizeAndRun(ToggleRightOnly))
-btnSynth := MyGui.Add("Button", "x298 y193 w104 h30", "合成")
+btnSynth := MyGui.Add("Button", "x256 y228 w80 h30", "合成")
 btnSynth.OnEvent("Click", MinimizeAndRun(ToggleSynth))
-txtClickStatus := MyGui.Add("Text", "x10 y228 w360", "状态：未运行")
-MyGui.Add("Text", "x10 y248 w392 h2 +0x1000")
+txtClickStatus := MyGui.Add("Text", "x10 y263 w332", "状态：未运行")
+MyGui.Add("Text", "x10 y283 w352 h2 +0x1000")
 
 ; ---- 3. 快捷切换桌面 ----
-MyGui.Add("Text", "x10 y258 w360", "3. 快捷切换桌面 (~)")
-btnQuickStart := MyGui.Add("Button", "x10 y283 w191 h30", "开始：快捷切换")
+MyGui.Add("Text", "x10 y293 w332", "3. 快捷切换桌面 (~)")
+btnQuickStart := MyGui.Add("Button", "x10 y318 w170 h30", "开始：快捷切换")
 btnQuickStart.OnEvent("Click", MinimizeAndRun(StartQuickSwitch))
-btnQuickStop := MyGui.Add("Button", "x211 y283 w191 h30", "停止")
+btnQuickStop := MyGui.Add("Button", "x188 y318 w170 h30", "停止")
 btnQuickStop.OnEvent("Click", MinimizeAndRun(StopQuickSwitch))
 btnQuickStop.Enabled := false
-txtQuickStatus := MyGui.Add("Text", "x10 y323 w360", "状态：未录制")
+txtQuickStatus := MyGui.Add("Text", "x10 y358 w332", "状态：未录制")
 
 ; ---- 已保存的录制 ----
 ; 录制存在脚本目录下的 records 文件夹里，一个录制一个文件，文件名就是录制的名字。
 ; 下拉框里可以直接输新名字（点保存就是存成这个名字），也可以选已有的名字（点读取、删除）。
-MyGui.Add("Text", "x10 y348 w360", "已保存的录制")
-cmbRecords := MyGui.Add("ComboBox", "x10 y373 w190", [])
-btnSaveRecord := MyGui.Add("Button", "x208 y373 w60 h30", "保存")
+MyGui.Add("Text", "x10 y383 w332", "已保存的录制")
+cmbRecords := MyGui.Add("ComboBox", "x10 y408 w170", [])
+btnSaveRecord := MyGui.Add("Button", "x188 y408 w55 h30", "保存")
 btnSaveRecord.OnEvent("Click", MinimizeAndRun(SaveRecord))
-btnLoadRecord := MyGui.Add("Button", "x274 y373 w60 h30", "读取")
+btnLoadRecord := MyGui.Add("Button", "x249 y408 w55 h30", "读取")
 btnLoadRecord.OnEvent("Click", MinimizeAndRun(LoadRecord))
-btnDeleteRecord := MyGui.Add("Button", "x340 y373 w60 h30", "删除")
+btnDeleteRecord := MyGui.Add("Button", "x310 y408 w55 h30", "删除")
 btnDeleteRecord.OnEvent("Click", MinimizeAndRun(DeleteRecord))
-MyGui.Add("Text", "x10 y413 w392 h2 +0x1000")
+MyGui.Add("Text", "x10 y448 w352 h2 +0x1000")
 
 ; ---- 4. 账号登陆 ----
-; 三个短选择框和新增/登陆/删除三个按钮在同一排（和最早的单框版式一样）：
-; 一个框管一个桌面，框下面分别标注桌面1/2/3。每个框里是 accounts
-; 文件夹里已保存的账号（只能选、不能输），最后一行是空行，选空行 =
-; 这个桌面不登陆。点「登陆」按桌面 1→2→3 依次登陆选了账号的桌面。
-; 新增账号走「新增」按钮弹的对话框（账号、密码、二次密码都在对话框
-; 里填）；「删除」删的是桌面1框里选中的账号。账号名最长 6 个字符，
-; 三个框各 w68 正好显示全（w60 时最后一个字符显示不下，她定的）；
-; 三个按钮合起来宽约 170，和功能 3 的录制框一样宽。窗口配合加宽
-; 到 412（原 380），上面三个部分也相应略宽，整体匀称。
-MyGui.Add("Text", "x10 y423 w180", "4. 账号登陆（无快捷键）")
+; 四个短选择框一排（2026-11-22 她加的桌面4），框下面分别标注桌面1/2/3/4；
+; 新增/登陆/删除三个按钮在选择框的下面一排（2026-11-22 她改的，原来和选择框
+; 同一排）。每个框里是 accounts 文件夹里已保存的账号（只能选、不能输），
+; 最后一行是空行，选空行 = 这个桌面不登陆。点「登陆」按桌面 1→2→3→4
+; 依次登陆选了账号的桌面。新增账号走「新增」按钮弹的对话框（账号、密码、
+; 二次密码都在对话框里填）；「删除」删的是桌面1框里选中的账号。账号名最长
+; 6 个字符，四个框各 w68 正好显示全（w60 时最后一个字符显示不下，她定的）。
+; 窗口配合收窄到 372（原 412），上面三个部分也相应收窄，整体匀称。
+MyGui.Add("Text", "x10 y458 w180", "4. 账号登陆（无快捷键）")
 ; 「关闭王者日志」默认勾选：勾上才在登陆后去各桌面点「关闭」；不勾只登陆不点。
-chkCloseKingLog := MyGui.Add("CheckBox", "x200 y423 w130 h20 Checked", "关闭王者日志")
-cmbAcc1 := MyGui.Add("DropDownList", "x10 y448 w68 r35", [])
-cmbAcc2 := MyGui.Add("DropDownList", "x82 y448 w68 r35", [])
-cmbAcc3 := MyGui.Add("DropDownList", "x154 y448 w68 r35", [])
+chkCloseKingLog := MyGui.Add("CheckBox", "x200 y458 w130 h20 Checked", "关闭王者日志")
+cmbAcc1 := MyGui.Add("DropDownList", "x10 y483 w68 r35", [])
+cmbAcc2 := MyGui.Add("DropDownList", "x82 y483 w68 r35", [])
+cmbAcc3 := MyGui.Add("DropDownList", "x154 y483 w68 r35", [])
+cmbAcc4 := MyGui.Add("DropDownList", "x226 y483 w68 r35", [])
 SendMessage(0x1701, 35, 0, cmbAcc1)  ; CB_SETMINVISIBLE：弹出列表一次显示 35 行，不用滚动
 SendMessage(0x1701, 35, 0, cmbAcc2)
 SendMessage(0x1701, 35, 0, cmbAcc3)
-MyGui.Add("Text", "x10 y480 w68 +Center", "桌面1")
-MyGui.Add("Text", "x82 y480 w68 +Center", "桌面2")
-MyGui.Add("Text", "x154 y480 w68 +Center", "桌面3")
-btnAddAccount := MyGui.Add("Button", "x227 y448 w55 h30", "新增")
+SendMessage(0x1701, 35, 0, cmbAcc4)
+MyGui.Add("Text", "x10 y515 w68 +Center", "桌面1")
+MyGui.Add("Text", "x82 y515 w68 +Center", "桌面2")
+MyGui.Add("Text", "x154 y515 w68 +Center", "桌面3")
+MyGui.Add("Text", "x226 y515 w68 +Center", "桌面4")
+btnAddAccount := MyGui.Add("Button", "x10 y541 w68 h30", "新增")
 btnAddAccount.OnEvent("Click", AddAccount)
-btnLogin := MyGui.Add("Button", "x286 y448 w55 h30", "登陆")
+btnLogin := MyGui.Add("Button", "x82 y541 w68 h30", "登陆")
 btnLogin.OnEvent("Click", MinimizeAndRun(LoginAccount))
-btnDeleteAccount := MyGui.Add("Button", "x345 y448 w55 h30", "删除")
+btnDeleteAccount := MyGui.Add("Button", "x154 y541 w68 h30", "删除")
 btnDeleteAccount.OnEvent("Click", MinimizeAndRun(DeleteAccount))
 ; 更新结果就显示在这一行（平时空着）：点底部「更新」后显示几秒，然后自动消失。
 ; 功能 4 原来的「状态：未登陆」一行 2026-11-06 按她要求去掉，登陆进度改记到日志。
-txtUpdateStatus := MyGui.Add("Text", "x10 y504 w392", "")
-MyGui.Add("Text", "x10 y528 w392 h2 +0x1000")
+txtUpdateStatus := MyGui.Add("Text", "x10 y579 w332", "")
+MyGui.Add("Text", "x10 y603 w352 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y538 w72 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y613 w66 h30", "全部停止")
 btnStopAll.OnEvent("Click", MinimizeAndRun(StopAll))
-btnSaveConfig := MyGui.Add("Button", "x90 y538 w72 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x82 y613 w66 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", MinimizeAndRun(SaveConfig))
-btnHelp := MyGui.Add("Button", "x170 y538 w72 h30", "使用说明")
+btnHelp := MyGui.Add("Button", "x154 y613 w66 h30", "使用说明")
 btnHelp.OnEvent("Click", ToggleHelp)
 ; 「更新」不包 MinimizeAndRun：点了要留在窗口上看更新结果那一行。
-btnUpdate := MyGui.Add("Button", "x250 y538 w72 h30", "更新")
+btnUpdate := MyGui.Add("Button", "x226 y613 w66 h30", "更新")
 btnUpdate.OnEvent("Click", CheckForUpdate)
-btnExit := MyGui.Add("Button", "x330 y538 w72 h30", "退出")
+btnExit := MyGui.Add("Button", "x298 y613 w66 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 ; 使用说明面板（窗口右侧，平时藏着，点「使用说明」才展开显示）。
-txtHelp := MyGui.Add("Edit", "x422 y10 w300 h571 +ReadOnly +Multi +VScroll", HelpText)
+txtHelp := MyGui.Add("Edit", "x382 y10 w300 h646 +ReadOnly +Multi +VScroll", HelpText)
 txtHelp.Visible := false
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -564,7 +566,7 @@ if (DesktopCount < 1) {
 RefreshRecordList()
 RefreshAccountList()
 
-MyGui.Show("w412 h591")
+MyGui.Show("w372 h666")
 
 ; 打开脚本时默认开启功能 3（快捷切换）：和点「开始」按钮走
 ; 同一条路，开启后 2 秒还会把三个桌面的游戏窗口居中。
@@ -2275,11 +2277,11 @@ DeleteRecord(*) {
 }
 
 ; ===== 功能 4：账号登陆 =====
-; 刷新三个桌面选择框里的账号列表（读 accounts 文件夹里的 .txt 文件名，不读内容）。
+; 刷新四个桌面选择框里的账号列表（读 accounts 文件夹里的 .txt 文件名，不读内容）。
 ; 每个框的最后一行固定是空行（选它 = 这个桌面不登陆）；刷新前选的账号
 ; 还在就选回去，已经被删了就回到空行。
 RefreshAccountList() {
-    global cmbAcc1, cmbAcc2, cmbAcc3, AccountsDir
+    global cmbAcc1, cmbAcc2, cmbAcc3, cmbAcc4, AccountsDir
     Names := []
     if (DirExist(AccountsDir)) {
         Loop Files, AccountsDir "\*.txt" {
@@ -2287,7 +2289,7 @@ RefreshAccountList() {
         }
     }
     Names.Push("")
-    for Cmb in [cmbAcc1, cmbAcc2, cmbAcc3] {
+    for Cmb in [cmbAcc1, cmbAcc2, cmbAcc3, cmbAcc4] {
         Prev := Trim(Cmb.Text)
         Cmb.Delete()
         Cmb.Add(Names)
@@ -2423,7 +2425,7 @@ CloseAddDialog() {
     MyGui.Opt("-Disabled")
 }
 
-; 「删除」删的是桌面1框里选中的账号（三个框选的是同一批账号文件，
+; 「删除」删的是桌面1框里选中的账号（四个框选的是同一批账号文件，
 ; 删除是删文件，跟桌面无关，固定拿桌面1的框当准）。
 DeleteAccount(*) {
     global AccountsDir, cmbAcc1
@@ -2462,18 +2464,18 @@ StopLogin(*) {
     ToolTip()
 }
 
-; 点“登陆”：三个框里选了账号的桌面，按桌面 1→2→3 依次登陆
+; 点“登陆”：四个框里选了账号的桌面，按桌面 1→2→3→4 依次登陆
 ; （选空行 = 那个桌面不登陆）。开始前先逐个校验选中的账号文件，
 ; 免得登到一半才发现某个账号文件有问题。某个桌面登陆出错只记下来、
 ; 继续登下一个，全部登完再一起弹框汇总（只登一个桌面时和以前一样，
 ; 出错弹完整的说明、没等到界面也和以前一样静默结束）；按 Esc
 ; 取消整个序列。全部登完切回开始时所在的桌面。
 LoginAccount(*) {
-    global LoginRunning, cmbAcc1, cmbAcc2, cmbAcc3, chkCloseKingLog
+    global LoginRunning, cmbAcc1, cmbAcc2, cmbAcc3, cmbAcc4, chkCloseKingLog
     global QuickSwitchEnabled, DesktopRunning, TwoRunning, RightRunning
     global DesktopCount, GetCurrentDesktopNumberProc
     Targets := []
-    for Idx, Cmb in [cmbAcc1, cmbAcc2, cmbAcc3] {
+    for Idx, Cmb in [cmbAcc1, cmbAcc2, cmbAcc3, cmbAcc4] {
         Name := Trim(Cmb.Text)
         if (Name = "") {
             continue
@@ -2490,7 +2492,7 @@ LoginAccount(*) {
         Targets.Push([Idx, Name, Info[1], Info[2]])
     }
     if (Targets.Length = 0) {
-        MsgBox("三个桌面都没选账号（都选了空行），不登陆。", "账号登陆", "OK Icon!")
+        MsgBox("四个桌面都没选账号（都选了空行），不登陆。", "账号登陆", "OK Icon!")
         return
     }
     ; 同一个账号不能在两个桌面上重复登陆：选重了就弹窗拦下，不开始。
