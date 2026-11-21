@@ -402,11 +402,11 @@ ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
     if (HelpShown) {
         txtHelp.Visible := false
-        MyGui.Show("w372 h592")
+        MyGui.Show("w372 h557")
         HelpShown := false
     } else {
         txtHelp.Visible := true
-        MyGui.Show("w692 h592")
+        MyGui.Show("w692 h557")
         HelpShown := true
     }
 }
@@ -446,40 +446,41 @@ MyGui.Add("Text", "x10 y125 w352 h2 +0x1000")
 ; 按 Esc 取消。取到的坐标不显示在界面上。
 MyGui.Add("Text", "x10 y135 w332", "2. 开箱子 (F12)")
 ; 取点：勾上「取点【F12】」才出现后面的选择框，选一个位置后窗口最小化、
-; 等按 F12 取点（选完一次就清空，下次再选）。
+; 等按 F12 取点（选完一次就清空，下次再选）。「抽奖」「精炼」两个按钮在
+; 同一行、取点选择框的右边（2026-11-22 她改的）。
 chkCapture := MyGui.Add("CheckBox", "x10 y157 w110 h30", "取点【F12】")
 chkCapture.OnEvent("Click", ToggleCaptureOptions)
 ddlCapture := MyGui.Add("DropDownList", "x125 y157 w80 r3", ["箱子", "自动放入", "开始精炼"])
 ddlCapture.OnEvent("Change", CaptureChoice)
 ddlCapture.Visible := false
-btnRightOnly := MyGui.Add("Button", "x10 y192 w80 h30", "抽奖")
+btnRightOnly := MyGui.Add("Button", "x213 y157 w72 h30", "抽奖")
 btnRightOnly.OnEvent("Click", MinimizeAndRun(ToggleRightOnly))
-btnRefine := MyGui.Add("Button", "x98 y192 w80 h30", "精炼")
+btnRefine := MyGui.Add("Button", "x293 y157 w72 h30", "精炼")
 btnRefine.OnEvent("Click", MinimizeAndRun(ToggleRefine))
-txtClickStatus := MyGui.Add("Text", "x10 y227 w332", "状态：未运行")
-MyGui.Add("Text", "x10 y247 w352 h2 +0x1000")
+txtClickStatus := MyGui.Add("Text", "x10 y192 w332", "状态：未运行")
+MyGui.Add("Text", "x10 y212 w352 h2 +0x1000")
 
 ; ---- 3. 快捷切换桌面 ----
-MyGui.Add("Text", "x10 y257 w332", "3. 快捷切换桌面 (~)")
-btnQuickStart := MyGui.Add("Button", "x10 y282 w170 h30", "开始：快捷切换")
+MyGui.Add("Text", "x10 y222 w332", "3. 快捷切换桌面 (~)")
+btnQuickStart := MyGui.Add("Button", "x10 y247 w170 h30", "开始：快捷切换")
 btnQuickStart.OnEvent("Click", MinimizeAndRun(StartQuickSwitch))
-btnQuickStop := MyGui.Add("Button", "x188 y282 w170 h30", "停止")
+btnQuickStop := MyGui.Add("Button", "x188 y247 w170 h30", "停止")
 btnQuickStop.OnEvent("Click", MinimizeAndRun(StopQuickSwitch))
 btnQuickStop.Enabled := false
-txtQuickStatus := MyGui.Add("Text", "x10 y322 w332", "状态：未录制")
+txtQuickStatus := MyGui.Add("Text", "x10 y287 w332", "状态：未录制")
 
 ; ---- 已保存的录制 ----
 ; 录制存在脚本目录下的 records 文件夹里，一个录制一个文件，文件名就是录制的名字。
 ; 下拉框里可以直接输新名字（点保存就是存成这个名字），也可以选已有的名字（点读取、删除）。
-MyGui.Add("Text", "x10 y347 w332", "已保存的录制")
-cmbRecords := MyGui.Add("ComboBox", "x10 y372 w170", [])
-btnSaveRecord := MyGui.Add("Button", "x188 y372 w55 h30", "保存")
+MyGui.Add("Text", "x10 y312 w332", "已保存的录制")
+cmbRecords := MyGui.Add("ComboBox", "x10 y337 w170", [])
+btnSaveRecord := MyGui.Add("Button", "x188 y337 w55 h30", "保存")
 btnSaveRecord.OnEvent("Click", MinimizeAndRun(SaveRecord))
-btnLoadRecord := MyGui.Add("Button", "x249 y372 w55 h30", "读取")
+btnLoadRecord := MyGui.Add("Button", "x249 y337 w55 h30", "读取")
 btnLoadRecord.OnEvent("Click", MinimizeAndRun(LoadRecord))
-btnDeleteRecord := MyGui.Add("Button", "x310 y372 w55 h30", "删除")
+btnDeleteRecord := MyGui.Add("Button", "x310 y337 w55 h30", "删除")
 btnDeleteRecord.OnEvent("Click", MinimizeAndRun(DeleteRecord))
-MyGui.Add("Text", "x10 y412 w352 h2 +0x1000")
+MyGui.Add("Text", "x10 y377 w352 h2 +0x1000")
 
 ; ---- 4. 账号登陆 ----
 ; 四个短选择框一排（2026-11-22 她加的桌面4），框下面分别标注桌面1/2/3/4；
@@ -490,42 +491,42 @@ MyGui.Add("Text", "x10 y412 w352 h2 +0x1000")
 ; 点「登陆」按桌面 1→2→3→4 依次登陆选了账号的桌面。账号名最长 6 个字符，
 ; 四个框各 w68 正好显示全（w60 时最后一个字符显示不下，她定的）。
 ; 窗口配合收窄到 372（原 412），上面三个部分也相应收窄，整体匀称。
-MyGui.Add("Text", "x10 y422 w180", "4. 账号登陆（无快捷键）")
+MyGui.Add("Text", "x10 y387 w180", "4. 账号登陆（无快捷键）")
 ; 「关闭王者日志」默认勾选：勾上才在登陆后去各桌面点「关闭」；不勾只登陆不点。
-chkCloseKingLog := MyGui.Add("CheckBox", "x200 y422 w130 h20 Checked", "关闭王者日志")
-cmbAcc1 := MyGui.Add("DropDownList", "x10 y447 w68 r35", [])
-cmbAcc2 := MyGui.Add("DropDownList", "x82 y447 w68 r35", [])
-cmbAcc3 := MyGui.Add("DropDownList", "x154 y447 w68 r35", [])
-cmbAcc4 := MyGui.Add("DropDownList", "x226 y447 w68 r35", [])
-btnLogin := MyGui.Add("Button", "x300 y447 w68 h30", "登陆")
+chkCloseKingLog := MyGui.Add("CheckBox", "x200 y387 w130 h20 Checked", "关闭王者日志")
+cmbAcc1 := MyGui.Add("DropDownList", "x10 y412 w68 r35", [])
+cmbAcc2 := MyGui.Add("DropDownList", "x82 y412 w68 r35", [])
+cmbAcc3 := MyGui.Add("DropDownList", "x154 y412 w68 r35", [])
+cmbAcc4 := MyGui.Add("DropDownList", "x226 y412 w68 r35", [])
+btnLogin := MyGui.Add("Button", "x300 y412 w68 h30", "登陆")
 btnLogin.OnEvent("Click", MinimizeAndRun(LoginAccount))
 SendMessage(0x1701, 35, 0, cmbAcc1)  ; CB_SETMINVISIBLE：弹出列表一次显示 35 行，不用滚动
 SendMessage(0x1701, 35, 0, cmbAcc2)
 SendMessage(0x1701, 35, 0, cmbAcc3)
 SendMessage(0x1701, 35, 0, cmbAcc4)
-MyGui.Add("Text", "x10 y479 w68 +Center", "桌面1")
-MyGui.Add("Text", "x82 y479 w68 +Center", "桌面2")
-MyGui.Add("Text", "x154 y479 w68 +Center", "桌面3")
-MyGui.Add("Text", "x226 y479 w68 +Center", "桌面4")
+MyGui.Add("Text", "x10 y444 w68 +Center", "桌面1")
+MyGui.Add("Text", "x82 y444 w68 +Center", "桌面2")
+MyGui.Add("Text", "x154 y444 w68 +Center", "桌面3")
+MyGui.Add("Text", "x226 y444 w68 +Center", "桌面4")
 ; 更新结果就显示在这一行（平时空着）：点底部「更新」后显示几秒，然后自动消失。
 ; 功能 4 原来的「状态：未登陆」一行 2026-11-06 按她要求去掉，登陆进度改记到日志。
-txtUpdateStatus := MyGui.Add("Text", "x10 y505 w332", "")
-MyGui.Add("Text", "x10 y529 w352 h2 +0x1000")
+txtUpdateStatus := MyGui.Add("Text", "x10 y470 w332", "")
+MyGui.Add("Text", "x10 y494 w352 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y539 w66 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y504 w66 h30", "全部停止")
 btnStopAll.OnEvent("Click", MinimizeAndRun(StopAll))
-btnSaveConfig := MyGui.Add("Button", "x82 y539 w66 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x82 y504 w66 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", MinimizeAndRun(SaveConfig))
-btnHelp := MyGui.Add("Button", "x154 y539 w66 h30", "使用说明")
+btnHelp := MyGui.Add("Button", "x154 y504 w66 h30", "使用说明")
 btnHelp.OnEvent("Click", ToggleHelp)
 ; 「更新」不包 MinimizeAndRun：点了要留在窗口上看更新结果那一行。
-btnUpdate := MyGui.Add("Button", "x226 y539 w66 h30", "更新")
+btnUpdate := MyGui.Add("Button", "x226 y504 w66 h30", "更新")
 btnUpdate.OnEvent("Click", CheckForUpdate)
-btnExit := MyGui.Add("Button", "x298 y539 w66 h30", "退出")
+btnExit := MyGui.Add("Button", "x298 y504 w66 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 ; 使用说明面板（窗口右侧，平时藏着，点「使用说明」才展开显示）。
-txtHelp := MyGui.Add("Edit", "x382 y10 w300 h572 +ReadOnly +Multi +VScroll", HelpText)
+txtHelp := MyGui.Add("Edit", "x382 y10 w300 h537 +ReadOnly +Multi +VScroll", HelpText)
 txtHelp.Visible := false
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -557,7 +558,7 @@ if (DesktopCount < 1) {
 RefreshRecordList()
 RefreshAccountList()
 
-MyGui.Show("w372 h592")
+MyGui.Show("w372 h557")
 
 ; 打开脚本时默认开启功能 3（快捷切换）：和点「开始」按钮走
 ; 同一条路，开启后 2 秒还会把三个桌面的游戏窗口居中。
