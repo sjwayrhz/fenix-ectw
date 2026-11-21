@@ -142,7 +142,7 @@ GameTitle := "Atlantica Online Fenix"  ; 游戏窗口标题（截图里看到的
 CyclePhase := "main"
 CycleCount := 0
 CurrentDesktop := 0
-QuickSwitchEnabled := false ; 快捷切换桌面（键盘 F1/F2/F3）的开关；打开脚本时默认开启（自动执行段末尾调 StartQuickSwitch）
+QuickSwitchEnabled := false ; 快捷切换桌面（键盘 F1/F2/F3/F4）的开关；打开脚本时默认开启（自动执行段末尾调 StartQuickSwitch）
 Recording := false        ; 是不是正在录鼠标
 RecordEvents := []        ; 录下来的鼠标动作，每条是 [类型, X, Y, 间隔毫秒]
 RecordLastTick := 0       ; 上一个录下来的动作是什么时候（A_TickCount）
@@ -151,10 +151,10 @@ RecordLastR := false      ; 上次轮询时右键是不是按着
 PlayingBack := false      ; 是不是正在回放
 RecordsDir := A_ScriptDir "\records"  ; 保存的录制文件夹，一个录制一个 .txt 文件
 LoadedRecordName := ""  ; 当前内存里的录制是从哪个文件读来的（空表示刚录的、没保存）
-; 录键盘时要轮询的按键（脚本自己的热键 F1-F5、F8、F9、F11、F12、飘号键不录，
+; 录键盘时要轮询的按键（脚本自己的热键 F1-F6、F8、F9、F11、F12、飘号键不录，
 ; 免得录进去又触发脚本功能）。字母、数字、空格、回车、Tab、Esc、退格、
-; 左右 Shift/Ctrl/Alt、方向键、F6/F7、小键盘。
-KeysToRecord := ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","1","2","3","4","5","6","7","8","9","0","Space","Enter","Tab","Escape","Backspace","LShift","RShift","LCtrl","RCtrl","LAlt","RAlt","Up","Down","Left","Right","F6","F7","Numpad0","Numpad1","Numpad2","Numpad3","Numpad4","Numpad5","Numpad6","Numpad7","Numpad8","Numpad9","NumpadDot","NumpadAdd","NumpadSub","NumpadMult","NumpadDiv","NumpadEnter"]
+; 左右 Shift/Ctrl/Alt、方向键、F7、小键盘。
+KeysToRecord := ["a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","1","2","3","4","5","6","7","8","9","0","Space","Enter","Tab","Escape","Backspace","LShift","RShift","LCtrl","RCtrl","LAlt","RAlt","Up","Down","Left","Right","F7","Numpad0","Numpad1","Numpad2","Numpad3","Numpad4","Numpad5","Numpad6","Numpad7","Numpad8","Numpad9","NumpadDot","NumpadAdd","NumpadSub","NumpadMult","NumpadDiv","NumpadEnter"]
 KeyPrevState := Map()       ; 每个按键上次轮询时是不是按着（录键盘用）
 ; 刚激活的游戏窗口的位置和大小，找图标只在这个窗口里面找。
 GameWinX := 0
@@ -394,9 +394,9 @@ HelpText := "快捷键说明"
     . "`nF12：取点时按它取点（取点成功后 2 秒内按 F12 不起作用，防误触）；「开箱子」运行中按它停止；没运行时按它启动上次点过的模式（刚打开脚本还没点过模式按钮时，按 F12 没反应，第一次必须先点按钮；关掉脚本后上次模式不保留）。单按启动会慢 0.4 秒（要等一下看是不是双击）"
     . "`n双击 F12（两次按下间隔不到 0.4 秒）：跑回收站那套——先在当前桌面的游戏窗口里找回收站图标点一下，等 0.5 秒，再把 11 张物品图在游戏窗口里各找一遍，找到几个就点几个（每张图之间隔 0.2 秒）。点完之后光标挪到标题栏最左端再检查一秒，发现就再点再检查，1 秒没发现就不找了。跑的时候轮询最好停着，免得轮询切桌面打断它"
     . "`n飘号键（1 左边）：开启 / 关闭「快捷切换」"
-    . "`nF1 / F2 / F3：切到桌面 1 / 2 / 3（快捷切换开启时才管用）"
-    . "`nF4：回放录制，点按回放 1 次，按住约 2 秒弹出对话框填重复次数（默认 0 = 无限制，填 3 就回放 3 次），回放中再按 F4 立刻停（快捷切换开启时才管用）"
-    . "`nF5：开始 / 停止录制，回放中按 F5 也立刻停（快捷切换开启时才管用）"
+    . "`nF1 / F2 / F3 / F4：切到桌面 1 / 2 / 3 / 4（快捷切换开启时才管用）"
+    . "`nF5：回放录制，点按回放 1 次，按住约 2 秒弹出对话框填重复次数（默认 0 = 无限制，填 3 就回放 3 次），回放中再按 F5 立刻停（快捷切换开启时才管用）"
+    . "`nF6：开始 / 停止录制，回放中按 F6 也立刻停（快捷切换开启时才管用）"
     . "`nEsc：取点时取消；账号登陆进行中按 Esc 取消登陆"
     . "`n功能 4「账号登陆」没有快捷键：桌面1/2/3 三个下拉框各选一个已保存的账号（只能选不能输），每个框最后一行是空行、选空行就是这个桌面不登陆；两个框选了同一个账号，点「登陆」会弹窗拦下，不允许重复登陆；点「登陆」按桌面1→2→3 依次登陆选了账号的桌面（切过去后先核对桌面号，没切成会跳过那个桌面、并在最后的汇总里报错，不会在错桌面上登陆），自动完成输账号密码、二次密码、登陆确认，全部登完再依次回到每个登陆过的桌面、把游戏窗口里的「关闭」（英文版是 Close，两个都认）点掉（每个桌面最多找 8 秒，找不到就跳过，登陆时报错跳过的桌面不找；标题右边的「关闭王者日志」勾选框勾上才点，默认勾选，不勾就只登陆不点），最后切回开始时所在的桌面；点「新增」弹对话框，账号、密码、二次密码（只能是数字）都填好点保存，才会存成 accounts 文件夹里的 账号名.txt（第 1 行密码、第 2 行二次密码），不用再去改 txt 文件；「删除」删的是桌面1框里选中的账号"
     . "`n底部「更新」按钮（没有快捷键）：点一下就在脚本所在文件夹里执行 git pull，有新版本就自动重启脚本让新代码生效；结果显示在账号登陆下面那一行，几秒后自动消失，不弹框"
@@ -1828,9 +1828,9 @@ AlignGameWindows() {
 }
 
 ; ===== 快捷切换桌面 =====
-; 点按钮或按键盘 F1/F2/F3 切到对应桌面。
+; 点按钮或按键盘 F1/F2/F3/F4 切到对应桌面。
 ; 桌面号从 0 开始（桌面 1 = 0）。DLL 没加载成功时切不了。
-; F1/F2/F3 切桌面：切过去后自动激活（点选）那个桌面上的游戏窗口，
+; F1/F2/F3/F4 切桌面：切过去后自动激活（点选）那个桌面上的游戏窗口，
 ; 不用再手动点一下。先等切换真正完成，再按标题找（每个桌面只有一个
 ; 游戏窗口，用 DLL 挑出当前桌面上的那一个），找不到再用图标位置找；
 ; 都找不到就点一下 (212,57) 来聚焦（和轮询的激活失败后一样）。
@@ -1860,7 +1860,7 @@ GoToDesktop(DesktopNum) {
     }
 }
 
-; 快捷切换的开始/停止：开始打开键盘 F1/F2/F3 切桌面，停止就关掉。
+; 快捷切换的开始/停止：开始打开键盘 F1/F2/F3/F4 切桌面，停止就关掉。
 ; 开始后「开始」变灰、「停止」可用；停止后反过来。
 StartQuickSwitch(*) {
     global QuickSwitchEnabled, btnQuickStart, btnQuickStop
@@ -1871,7 +1871,7 @@ StartQuickSwitch(*) {
     btnQuickStart.Enabled := false
     btnQuickStop.Enabled := true
     ShowTempToolTip("快捷切换已开启")
-    ; 2 秒后把三个桌面上的游戏窗口都挪到屏幕正中间，
+    ; 2 秒后把各桌面上的游戏窗口都挪到屏幕正中间，
     ; 这样录的鼠标坐标换桌面也能用。
     LogFind("quickswitch: started, align timer set (2s)")
     SetTimer(AlignGameWindows, -2000)
@@ -1917,8 +1917,8 @@ ClearToolTip() {
 
 ; ===== 录鼠标和键盘 / 回放（快捷切换开着的时候才能用）=====
 ; 录鼠标（每次点下/松开左键/右键的位置和间隔）、键盘（每次按下/松开按键和间隔）。
-; 回放按 F4：点一下回放 1 次；按住 F4 大约 2 秒弹出对话框
-; 填重复次数（默认 0 = 无限制），确定后 1 秒开始回放，再按 F4 停掉。
+; 回放按 F5：点一下回放 1 次；按住 F5 大约 2 秒弹出对话框
+; 填重复次数（默认 0 = 无限制），确定后 1 秒开始回放，再按 F5 停掉。
 ; 每遍开始时光标旁边显示统计（回放 1 次显示「回放 1/1」，无限显示「无限回放 第 k 次」）。
 RecordPoll() {
     global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, KeysToRecord, KeyPrevState, txtQuickStatus
@@ -1966,7 +1966,7 @@ RecordPoll() {
     }
 }
 
-; 5 键：回放中按一下停回放；不回放时按一下开始/停止录制。
+; 6 键：回放中按一下停回放；不回放时按一下开始/停止录制。
 ToggleRecord(*) {
     global Recording, RecordEvents, RecordLastTick, RecordLastL, RecordLastR, PlayingBack, KeysToRecord, KeyPrevState, LoadedRecordName, txtQuickStatus
     if (PlayingBack) {
@@ -1977,8 +1977,8 @@ ToggleRecord(*) {
     if (Recording) {
         Recording := false
         SetTimer(RecordPoll, 0)
-        txtQuickStatus.Text := "状态：已录制 " RecordEvents.Length " 个动作，按 F4 回放"
-        ShowTempToolTip("已录制 " RecordEvents.Length " 个动作，按 F4 回放")
+        txtQuickStatus.Text := "状态：已录制 " RecordEvents.Length " 个动作，按 F5 回放"
+        ShowTempToolTip("已录制 " RecordEvents.Length " 个动作，按 F5 回放")
     } else {
         RecordEvents := []
         LoadedRecordName := ""
@@ -1992,36 +1992,36 @@ ToggleRecord(*) {
         }
         Recording := true
         SetTimer(RecordPoll, 10)
-        txtQuickStatus.Text := "状态：正在记录鼠标和键盘…再按 F5 停止"
-        ToolTip("正在记录鼠标和键盘…再按 F5 停止")
+        txtQuickStatus.Text := "状态：正在记录鼠标和键盘…再按 F6 停止"
+        ToolTip("正在记录鼠标和键盘…再按 F6 停止")
     }
 }
 
-; F4：点一下回放 1 次；按住大约 2 秒弹出对话框填重复次数
+; F5：点一下回放 1 次；按住大约 2 秒弹出对话框填重复次数
 ; （默认 0，0 是无限制，填几就回放几次），点确定后 1 秒开始
-; 回放；取消就不回放。再按 F4 停掉（F5 也能停）。
-F4Handler(*) {
+; 回放；取消就不回放。再按 F5 停掉（F6 也能停）。
+PlaybackHandler(*) {
     global Recording, RecordEvents, PlayingBack, txtQuickStatus
     if (Recording) {
         return
     }
     if (PlayingBack) {
-        ; 正在回放，按 F4 就停掉（点一下还是按住都一样，立刻停）
+        ; 正在回放，按 F5 就停掉（点一下还是按住都一样，立刻停）
         PlayingBack := false
         ToolTip()
-        txtQuickStatus.Text := "状态：已录制 " RecordEvents.Length " 个动作，按 F4 回放"
+        txtQuickStatus.Text := "状态：已录制 " RecordEvents.Length " 个动作，按 F5 回放"
         ShowTempToolTip("回放已停止")
         return
     }
     if (RecordEvents.Length = 0) {
-        ShowTempToolTip("没有录制内容，先按 F5 录一段")
+        ShowTempToolTip("没有录制内容，先按 F6 录一段")
         return
     }
-    ; 等 F4 松开，最多等 2 秒：2 秒内松开是点一下，超过 2 秒是按住。
+    ; 等 F5 松开，最多等 2 秒：2 秒内松开是点一下，超过 2 秒是按住。
     ; 回放用一次性定时器另起一个线程跑，这个热键线程立刻返回、空出来，
-    ; 回放中再按 F4 才能再进本函数走到上面的停止分支（同一热键同时
-    ; 只能跑一个线程，线程被回放占住时，后按的 F4 会被直接吞掉）。
-    Released := KeyWait("F4", "T2")
+    ; 回放中再按 F5 才能再进本函数走到上面的停止分支（同一热键同时
+    ; 只能跑一个线程，线程被回放占住时，后按的 F5 会被直接吞掉）。
+    Released := KeyWait("F5", "T2")
     if (Released) {
         SetTimer(() => PlayRecording(1), -1)
     } else {
@@ -2043,7 +2043,7 @@ F4Handler(*) {
     }
 }
 
-; 把录下来的鼠标动作执行 Count 遍（Count=0 是无限次，直到再按 F4 停掉）。
+; 把录下来的鼠标动作执行 Count 遍（Count=0 是无限次，直到再按 F5 停掉）。
 ; 间隔按录的时候一样（最长 30 秒）。
 ; 有限次时每遍开始显示「回放 k/N」，无限时显示「无限回放 第 k 次」。
 PlayRecording(Count) {
@@ -2066,10 +2066,10 @@ PlayRecording(Count) {
         if (Count > 0) {
             CountText := Round "/" Count
             ToolTip("回放 " CountText)
-            txtQuickStatus.Text := "状态：正在回放 " CountText "…按 F4 停止"
+            txtQuickStatus.Text := "状态：正在回放 " CountText "…按 F5 停止"
         } else {
             ToolTip("无限回放 第 " Round " 次")
-            txtQuickStatus.Text := "状态：无限回放 第 " Round " 次…按 F4 停止"
+            txtQuickStatus.Text := "状态：无限回放 第 " Round " 次…按 F5 停止"
         }
         for Ev in RecordEvents {
             if (!PlayingBack) {
@@ -2111,7 +2111,7 @@ PlayRecording(Count) {
         }
     }
     PlayingBack := false
-    txtQuickStatus.Text := "状态：已录制 " RecordEvents.Length " 个动作，按 F4 回放"
+    txtQuickStatus.Text := "状态：已录制 " RecordEvents.Length " 个动作，按 F5 回放"
     if (FinishedAll) {
         ToolTip()
         ShowTempToolTip("回放完成")
@@ -2124,7 +2124,7 @@ PlayRecording(Count) {
         } catch {
         }
     }
-    ; 中途停掉的，F4/F5 那边已经显示了「回放已停止」，这里不碰提示。
+    ; 中途停掉的，F5/F6 那边已经显示了「回放已停止」，这里不碰提示。
 }
 
 ; ===== 已保存的录制 =====
@@ -2151,7 +2151,7 @@ RefreshRecordList() {
 SaveRecord(*) {
     global RecordEvents, RecordsDir, cmbRecords, txtQuickStatus, LoadedRecordName
     if (RecordEvents.Length = 0) {
-        MsgBox("没有录制内容，先按 F5 录一段。", "保存录制", "OK Icon!")
+        MsgBox("没有录制内容，先按 F6 录一段。", "保存录制", "OK Icon!")
         return
     }
     Name := Trim(cmbRecords.Text)
@@ -2190,7 +2190,7 @@ SaveRecord(*) {
     txtQuickStatus.Text := "状态：已保存「" Name "」，共 " RecordEvents.Length " 个动作"
 }
 
-; 读取：把下拉框里选中的文件读进内存，按 F4 就能回放，不用再录。
+; 读取：把下拉框里选中的文件读进内存，按 F5 就能回放，不用再录。
 LoadRecord(*) {
     global RecordEvents, RecordsDir, cmbRecords, txtQuickStatus, LoadedRecordName, Recording, PlayingBack
     if (Recording || PlayingBack) {
@@ -2240,10 +2240,10 @@ LoadRecord(*) {
     }
     RecordEvents := NewEvents
     LoadedRecordName := Name
-    txtQuickStatus.Text := "状态：已读取「" Name "」，共 " RecordEvents.Length " 个动作，按 F4 回放"
+    txtQuickStatus.Text := "状态：已读取「" Name "」，共 " RecordEvents.Length " 个动作，按 F5 回放"
 }
 
-; 删除：删掉下拉框里选中的文件（内存里的录制还在，按 F4 还能回放）。
+; 删除：删掉下拉框里选中的文件（内存里的录制还在，按 F5 还能回放）。
 DeleteRecord(*) {
     global RecordsDir, cmbRecords, LoadedRecordName
     Name := Trim(cmbRecords.Text)
@@ -3268,11 +3268,12 @@ Esc::StopLogin()
 #HotIf
 
 ; 快捷切换桌面的键盘：只在开关打开时生效（打开脚本时默认开），
-; 关了 F1/F2/F3 就是正常的功能键，不会切桌面。
+; 关了 F1/F2/F3/F4 就是正常的功能键，不会切桌面。
 #HotIf QuickSwitchEnabled
 F1::GoToDesktop(0)
 F2::GoToDesktop(1)
 F3::GoToDesktop(2)
-F4::F4Handler()
-F5::ToggleRecord()
+F4::GoToDesktop(3)
+F5::PlaybackHandler()
+F6::ToggleRecord()
 #HotIf
