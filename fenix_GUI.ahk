@@ -74,8 +74,8 @@ DetectHiddenWindows(true)
 ;      文件夹里已保存的账号（一个账号一个 .txt，文件名就是账号名，
 ;      第 1 行是登陆密码，第 2 行是二次密码），只能选、不能输；
 ;      每个框最后一行是空行，选空行 = 这个桌面不登陆。
-;      选择框下面一排三个按钮：新增（弹对话框填账号、密码、二次密码，三个都填好
-;      点保存才写入 accounts\账号名.txt）、登陆、删除（删桌面1框里选中的账号）。
+;      桌面4选择框右边一个「登陆」按钮，和四个选择框同一排。
+;      加账号在 accounts 里新建 账号名.txt，删账号直接删那个 txt。
 ;      点登陆：窗口最小化 -> 按桌面 1→2→3→4 依次切桌面、激活该桌面的
 ;      Atlantica Online Fenix 客户端 ->
 ;      FindText 找 Login 按钮 -> 点账号框输账号 -> Tab -> 输密码 ->
@@ -396,17 +396,17 @@ HelpText := "快捷键说明"
     . "`nF5：回放录制，点按回放 1 次，按住约 2 秒弹出对话框填重复次数（默认 0 = 无限制，填 3 就回放 3 次），回放中再按 F5 立刻停（快捷切换开启时才管用）"
     . "`nF6：开始 / 停止录制，回放中按 F6 也立刻停（快捷切换开启时才管用）"
     . "`nEsc：取点时取消；账号登陆进行中按 Esc 取消登陆"
-    . "`n功能 4「账号登陆」没有快捷键：桌面1/2/3/4 四个下拉框各选一个已保存的账号（只能选不能输），每个框最后一行是空行、选空行就是这个桌面不登陆；两个框选了同一个账号，点「登陆」会弹窗拦下，不允许重复登陆；点「登陆」按桌面1→2→3→4 依次登陆选了账号的桌面（切过去后先核对桌面号，没切成会跳过那个桌面、并在最后的汇总里报错，不会在错桌面上登陆），自动完成输账号密码、二次密码、登陆确认，全部登完再依次回到每个登陆过的桌面、把游戏窗口里的「关闭」（英文版是 Close，两个都认）点掉（每个桌面最多找 8 秒，找不到就跳过，登陆时报错跳过的桌面不找；标题右边的「关闭王者日志」勾选框勾上才点，默认勾选，不勾就只登陆不点），最后切回开始时所在的桌面；点「新增」弹对话框，账号、密码、二次密码（只能是数字）都填好点保存，才会存成 accounts 文件夹里的 账号名.txt（第 1 行密码、第 2 行二次密码），不用再去改 txt 文件；「删除」删的是桌面1框里选中的账号"
+    . "`n功能 4「账号登陆」没有快捷键：桌面1/2/3/4 四个下拉框各选一个已保存的账号（只能选不能输），每个框最后一行是空行、选空行就是这个桌面不登陆；两个框选了同一个账号，点「登陆」会弹窗拦下，不允许重复登陆；点「登陆」按桌面1→2→3→4 依次登陆选了账号的桌面（切过去后先核对桌面号，没切成会跳过那个桌面、并在最后的汇总里报错，不会在错桌面上登陆），自动完成输账号密码、二次密码、登陆确认，全部登完再依次回到每个登陆过的桌面、把游戏窗口里的「关闭」（英文版是 Close，两个都认）点掉（每个桌面最多找 8 秒，找不到就跳过，登陆时报错跳过的桌面不找；标题右边的「关闭王者日志」勾选框勾上才点，默认勾选，不勾就只登陆不点），最后切回开始时所在的桌面；加账号在 accounts 文件夹里新建 账号名.txt（第 1 行密码、第 2 行二次密码），删账号直接删那个 txt"
     . "`n底部「更新」按钮（没有快捷键）：点一下就在脚本所在文件夹里执行 git pull，有新版本就自动重启脚本让新代码生效；结果显示在账号登陆下面那一行，几秒后自动消失，不弹框"
 ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
     if (HelpShown) {
         txtHelp.Visible := false
-        MyGui.Show("w372 h630")
+        MyGui.Show("w372 h592")
         HelpShown := false
     } else {
         txtHelp.Visible := true
-        MyGui.Show("w692 h630")
+        MyGui.Show("w692 h592")
         HelpShown := true
     }
 }
@@ -483,12 +483,12 @@ MyGui.Add("Text", "x10 y412 w352 h2 +0x1000")
 
 ; ---- 4. 账号登陆 ----
 ; 四个短选择框一排（2026-11-22 她加的桌面4），框下面分别标注桌面1/2/3/4；
-; 新增/登陆/删除三个按钮在选择框的下面一排（2026-11-22 她改的，原来和选择框
-; 同一排）。每个框里是 accounts 文件夹里已保存的账号（只能选、不能输），
-; 最后一行是空行，选空行 = 这个桌面不登陆。点「登陆」按桌面 1→2→3→4
-; 依次登陆选了账号的桌面。新增账号走「新增」按钮弹的对话框（账号、密码、
-; 二次密码都在对话框里填）；「删除」删的是桌面1框里选中的账号。账号名最长
-; 6 个字符，四个框各 w68 正好显示全（w60 时最后一个字符显示不下，她定的）。
+; 「登陆」按钮在桌面4选择框的右边、和四个选择框同一排（2026-11-22 她改的）。
+; 「新增」「删除」同日去掉：加账号在 accounts 里新建 账号名.txt（第 1 行密码、
+; 第 2 行二次密码），删账号直接删那个 txt。每个框里是 accounts 文件夹里已
+; 保存的账号（只能选、不能输），最后一行是空行，选空行 = 这个桌面不登陆。
+; 点「登陆」按桌面 1→2→3→4 依次登陆选了账号的桌面。账号名最长 6 个字符，
+; 四个框各 w68 正好显示全（w60 时最后一个字符显示不下，她定的）。
 ; 窗口配合收窄到 372（原 412），上面三个部分也相应收窄，整体匀称。
 MyGui.Add("Text", "x10 y422 w180", "4. 账号登陆（无快捷键）")
 ; 「关闭王者日志」默认勾选：勾上才在登陆后去各桌面点「关闭」；不勾只登陆不点。
@@ -497,6 +497,8 @@ cmbAcc1 := MyGui.Add("DropDownList", "x10 y447 w68 r35", [])
 cmbAcc2 := MyGui.Add("DropDownList", "x82 y447 w68 r35", [])
 cmbAcc3 := MyGui.Add("DropDownList", "x154 y447 w68 r35", [])
 cmbAcc4 := MyGui.Add("DropDownList", "x226 y447 w68 r35", [])
+btnLogin := MyGui.Add("Button", "x300 y447 w68 h30", "登陆")
+btnLogin.OnEvent("Click", MinimizeAndRun(LoginAccount))
 SendMessage(0x1701, 35, 0, cmbAcc1)  ; CB_SETMINVISIBLE：弹出列表一次显示 35 行，不用滚动
 SendMessage(0x1701, 35, 0, cmbAcc2)
 SendMessage(0x1701, 35, 0, cmbAcc3)
@@ -505,31 +507,25 @@ MyGui.Add("Text", "x10 y479 w68 +Center", "桌面1")
 MyGui.Add("Text", "x82 y479 w68 +Center", "桌面2")
 MyGui.Add("Text", "x154 y479 w68 +Center", "桌面3")
 MyGui.Add("Text", "x226 y479 w68 +Center", "桌面4")
-btnAddAccount := MyGui.Add("Button", "x10 y505 w68 h30", "新增")
-btnAddAccount.OnEvent("Click", AddAccount)
-btnLogin := MyGui.Add("Button", "x82 y505 w68 h30", "登陆")
-btnLogin.OnEvent("Click", MinimizeAndRun(LoginAccount))
-btnDeleteAccount := MyGui.Add("Button", "x154 y505 w68 h30", "删除")
-btnDeleteAccount.OnEvent("Click", MinimizeAndRun(DeleteAccount))
 ; 更新结果就显示在这一行（平时空着）：点底部「更新」后显示几秒，然后自动消失。
 ; 功能 4 原来的「状态：未登陆」一行 2026-11-06 按她要求去掉，登陆进度改记到日志。
-txtUpdateStatus := MyGui.Add("Text", "x10 y543 w332", "")
-MyGui.Add("Text", "x10 y567 w352 h2 +0x1000")
+txtUpdateStatus := MyGui.Add("Text", "x10 y505 w332", "")
+MyGui.Add("Text", "x10 y529 w352 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y577 w66 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y539 w66 h30", "全部停止")
 btnStopAll.OnEvent("Click", MinimizeAndRun(StopAll))
-btnSaveConfig := MyGui.Add("Button", "x82 y577 w66 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x82 y539 w66 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", MinimizeAndRun(SaveConfig))
-btnHelp := MyGui.Add("Button", "x154 y577 w66 h30", "使用说明")
+btnHelp := MyGui.Add("Button", "x154 y539 w66 h30", "使用说明")
 btnHelp.OnEvent("Click", ToggleHelp)
 ; 「更新」不包 MinimizeAndRun：点了要留在窗口上看更新结果那一行。
-btnUpdate := MyGui.Add("Button", "x226 y577 w66 h30", "更新")
+btnUpdate := MyGui.Add("Button", "x226 y539 w66 h30", "更新")
 btnUpdate.OnEvent("Click", CheckForUpdate)
-btnExit := MyGui.Add("Button", "x298 y577 w66 h30", "退出")
+btnExit := MyGui.Add("Button", "x298 y539 w66 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 ; 使用说明面板（窗口右侧，平时藏着，点「使用说明」才展开显示）。
-txtHelp := MyGui.Add("Edit", "x382 y10 w300 h610 +ReadOnly +Multi +VScroll", HelpText)
+txtHelp := MyGui.Add("Edit", "x382 y10 w300 h572 +ReadOnly +Multi +VScroll", HelpText)
 txtHelp.Visible := false
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -561,7 +557,7 @@ if (DesktopCount < 1) {
 RefreshRecordList()
 RefreshAccountList()
 
-MyGui.Show("w372 h630")
+MyGui.Show("w372 h592")
 
 ; 打开脚本时默认开启功能 3（快捷切换）：和点「开始」按钮走
 ; 同一条路，开启后 2 秒还会把三个桌面的游戏窗口居中。
@@ -2315,134 +2311,6 @@ ReadAccountFile(Name) {
     return [Pwd, Pwd2]
 }
 
-; ===== 新增账号对话框 =====
-; 点「新增」弹这个对话框：账号、密码、二次密码都在这里填，三个都填好点保存
-; 才写入 accounts 文件。对话框开着时主窗口禁用（模态）；校验不过只弹框说明、
-; 对话框不关，改完再点保存。取消、按 Esc、点 X 都不保存。
-AddDlg := ""
-AddEdtName := ""
-AddEdtPwd := ""
-AddEdtPwd2 := ""
-AddSavedName := ""
-
-AddAccount(*) {
-    global MyGui, AddDlg, AddEdtName, AddEdtPwd, AddEdtPwd2, AddSavedName, cmbAcc1
-    if (IsObject(AddDlg)) {
-        AddDlg.Show()
-        return
-    }
-    AddSavedName := ""
-    Dlg := Gui("+Owner" MyGui.Hwnd " -MinimizeBox -MaximizeBox", "新增账号")
-    AddDlg := Dlg
-    Dlg.Add("Text", "x10 y14 w64", "账号：")
-    AddEdtName := Dlg.Add("Edit", "x74 y12 w206")
-    Dlg.Add("Text", "x10 y46 w64", "密码：")
-    AddEdtPwd := Dlg.Add("Edit", "x74 y44 w206 +Password")
-    Dlg.Add("Text", "x10 y78 w64", "二次密码：")
-    AddEdtPwd2 := Dlg.Add("Edit", "x74 y76 w206 +Password")
-    BtnOk := Dlg.Add("Button", "x74 y110 w96 h28 Default", "保存")
-    BtnOk.OnEvent("Click", AddDialogSave)
-    BtnCancel := Dlg.Add("Button", "x184 y110 w96 h28", "取消")
-    BtnCancel.OnEvent("Click", AddDialogCancel)
-    Dlg.OnEvent("Close", AddDialogCancel)
-    Dlg.OnEvent("Escape", AddDialogCancel)
-    MyGui.Opt("+Disabled")
-    Dlg.Show("w296 h150")
-    AddEdtName.Focus()
-    while (IsObject(AddDlg)) {
-        Sleep(50)
-    }
-    if (AddSavedName != "") {
-        RefreshAccountList()
-        cmbAcc1.Choose(AddSavedName)
-        ShowTempToolTip("已保存账号「" AddSavedName "」")
-    }
-}
-
-; 对话框里点「保存」：三个框逐个校验，都过了才写文件并关对话框。
-AddDialogSave(*) {
-    global AccountsDir, AddEdtName, AddEdtPwd, AddEdtPwd2, AddSavedName
-    Name := Trim(AddEdtName.Value)
-    Pwd := AddEdtPwd.Value
-    Pwd2 := Trim(AddEdtPwd2.Value)
-    if (Name = "") {
-        MsgBox("账号还没填。", "新增账号", "OK Icon!")
-        return
-    }
-    if (RegExMatch(Name, '[\\/:*?"<>|]')) {
-        MsgBox("账号名里不能有 \ / : * ? `" < > | 这些字符。", "新增账号", "OK Icon!")
-        return
-    }
-    if (Pwd = "" || Pwd2 = "") {
-        MsgBox("密码和二次密码都要填，缺一个保存不了。", "新增账号", "OK Icon!")
-        return
-    }
-    if (!RegExMatch(Pwd2, "^\d+$")) {
-        MsgBox("二次密码只能是数字。", "新增账号", "OK Icon!")
-        return
-    }
-    Path := AccountsDir "\" Name ".txt"
-    if (FileExist(Path)) {
-        Result := MsgBox("已经有账号「" Name "」了，要用这次填的密码和二次密码覆盖吗？", "新增账号", "YesNo Icon?")
-        if (Result = "No") {
-            return
-        }
-    }
-    try {
-        DirCreate(AccountsDir)
-        if (FileExist(Path)) {
-            FileDelete(Path)
-        }
-        FileAppend(Pwd . "`n" . Pwd2, Path, "UTF-8-RAW")
-    } catch as Err {
-        MsgBox("保存失败：" Err.Message, "新增账号", "OK Icon!")
-        return
-    }
-    AddSavedName := Name
-    CloseAddDialog()
-}
-
-AddDialogCancel(*) {
-    CloseAddDialog()
-}
-
-CloseAddDialog() {
-    global AddDlg, MyGui
-    if (IsObject(AddDlg)) {
-        AddDlg.Destroy()
-        AddDlg := ""
-    }
-    MyGui.Opt("-Disabled")
-}
-
-; 「删除」删的是桌面1框里选中的账号（四个框选的是同一批账号文件，
-; 删除是删文件，跟桌面无关，固定拿桌面1的框当准）。
-DeleteAccount(*) {
-    global AccountsDir, cmbAcc1
-    Name := Trim(cmbAcc1.Text)
-    if (Name = "") {
-        MsgBox("先在桌面1的下拉框里选一个账号。", "删除账号", "OK Icon!")
-        return
-    }
-    Path := AccountsDir "\" Name ".txt"
-    if (!FileExist(Path)) {
-        MsgBox("没有叫「" Name "」的账号。", "删除账号", "OK Icon!")
-        return
-    }
-    Result := MsgBox("确定要删除账号「" Name "」吗？`n（密码和二次密码都会一起删掉）", "删除账号", "YesNo Icon?")
-    if (Result = "No") {
-        return
-    }
-    try {
-        FileDelete(Path)
-    } catch as Err {
-        MsgBox("删除失败：" Err.Message, "删除账号", "OK Icon!")
-        return
-    }
-    RefreshAccountList()
-    ShowTempToolTip("已删除账号「" Name "」")
-}
-
 ; 终止进行中的登陆（Esc、全部停止、其他功能启动都会调用）。
 ; 登陆流程在下一个等待点发现标志变了就退出。
 StopLogin(*) {
@@ -2472,7 +2340,7 @@ LoginAccount(*) {
         }
         Info := ReadAccountFile(Name)
         if (Info.Length = 0) {
-            MsgBox("桌面" Idx "选的「" Name "」没有账号文件，先点「新增」添加账号。", "账号登陆", "OK Icon!")
+            MsgBox("桌面" Idx "选的「" Name "」没有账号文件，在 accounts 里新建 " Name ".txt（第 1 行密码、第 2 行二次密码）。", "账号登陆", "OK Icon!")
             return
         }
         if (Info[1] = "") {
