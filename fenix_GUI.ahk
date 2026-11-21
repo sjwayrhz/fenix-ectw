@@ -61,15 +61,13 @@ DetectHiddenWindows(true)
 ;        2026-11-16 那次是所有桌面都按）。
 ;      没有暂停按钮：F11（或点「启停键 F11」按钮）就是停止
 ;      （再启动从桌面 1 重新开始）。
-;   2. 开箱子（两点点击 + 右键点击合并）：
-;      左边按钮：两种点击同时操作
-;        两点点击：(700,450) 点一下 -> (822,450) 点一下，循环
-;        右键点击：同时在 (980,593) 定时右键
-;      中间按钮：抽奖（只做右键点击）
+;   2. 开箱子（两点点击 + 右键点击）：
+;      抽奖按钮（只做右键点击）
 ;        只在 (980,593) 定时右键，两点点击不启动
-;      右边按钮：合成（只做点击移动点击，即两点点击）
+;      精炼按钮（只做两点点击）
+;        (700,450) 点一下 -> (822,450) 点一下，循环；
 ;        只做两点点击，右键点击不启动
-;      三个按钮互斥：点另一个会先停掉当前模式再启动新模式；
+;      两个按钮互斥：点另一个会先停掉当前模式再启动新模式；
 ;      再点一次正在运行的按钮就是停止。
 ;   4. 账号登陆（没有快捷键，只能点按钮）：
 ;      四个短下拉框一个桌面一个（桌面1/2/3/4），每个框里是 accounts
@@ -88,8 +86,8 @@ DetectHiddenWindows(true)
 ; 使用：双击运行本脚本，点按钮或按快捷键即可。
 ;       F11 开关桌面轮询，F12 开关开箱子（兼取点键）。
 ;       桌面轮询有一个「启停键 F11」按钮，右边有个
-;       「使用女神的生命水」勾选框，勾上后右边出现冷却分钟下拉框；参数直接写死在代码里。开箱子的坐标用按钮取点（点取点按钮后窗口会最小化，
-;       把鼠标移到位置上按 F12 取点），点“保存配置”会存到同目录的
+;       「使用女神的生命水」勾选框，勾上后右边出现冷却分钟下拉框；参数直接写死在代码里。开箱子的坐标用勾选框取点（勾上「取点【F12】」后选一个位置，
+;       窗口会最小化，把鼠标移到位置上按 F12 取点），点“保存配置”会存到同目录的
 ;       fenix_Config.ini，下次打开自动恢复。
 ;       关窗口或点“退出”即全部停止并退出。
 ; 注意：功能 1 需要 VirtualDesktopAccessor.dll 和 FindText.ahk
@@ -327,7 +325,7 @@ PinBoxOffEN := [146, 26]   ; 英文版：第 1 格中心 -> 二次密码输入�
 PinEnterOffEN := [143, 108] ; 英文版：第 1 格中心 -> “Enter”按钮中心（量自 image-24）
 PinHuntNote := ""         ; 最近一次找键盘的小结（各数字命中数等），登陆失败时写进日志备查
 
-ClickMode := ""         ; "" = 未运行，"both" = 两种同时，"right" = 仅右键（抽奖），"two" = 仅两点点击（合成）
+ClickMode := ""         ; "" = 未运行，"right" = 仅右键（抽奖），"two" = 仅两点点击（精炼）
 LastClickMode := "" ; F12 启动时用上次点过的开箱子模式；刚打开脚本还没点过模式按钮时为空，F12 按了没反应（第一次必须先点按钮）。只记本次运行，不存配置，关掉脚本就没了
 CaptureTarget := 0  ; 0 = 没在取点；1 = 自动放入，2 = 开始精炼，3 = 箱子位置（点了取点按钮后，等按 F12 取点）
 CaptureTick := 0    ; 取点成功时的 TickCount；成功后 2 秒内 F12 不起作用，防误触
@@ -404,11 +402,11 @@ ToggleHelp(*) {
     global HelpShown, MyGui, txtHelp
     if (HelpShown) {
         txtHelp.Visible := false
-        MyGui.Show("w372 h666")
+        MyGui.Show("w372 h630")
         HelpShown := false
     } else {
         txtHelp.Visible := true
-        MyGui.Show("w692 h666")
+        MyGui.Show("w692 h630")
         HelpShown := true
     }
 }
@@ -443,48 +441,45 @@ txtDesktopStatus := MyGui.Add("Text", "x10 y105 w332", "状态：未运行")
 MyGui.Add("Text", "x10 y125 w352 h2 +0x1000")
 
 ; ---- 功能 2：开箱子（两点点击 + 右键点击）----
-; 坐标不用手输数字：点下面三个取点按钮，窗口会最小化，
+; 坐标不用手输数字：勾上「取点【F12】」后选一个位置，窗口会最小化，
 ; 把鼠标移到要记录的位置按 F12 取点（有「取点成功」提示），
 ; 按 Esc 取消。取到的坐标不显示在界面上。
 MyGui.Add("Text", "x10 y135 w332", "2. 开箱子 (F12)")
-MyGui.SetFont("s9")
-btnCapRight := MyGui.Add("Button", "x10 y157 w126 h30", "箱子位置取点F12")
-btnCapRight.OnEvent("Click", (*) => CapturePos(3))
-btnCapP1 := MyGui.Add("Button", "x143 y157 w126 h30", "自动放入取点F12")
-btnCapP1.OnEvent("Click", (*) => CapturePos(1))
-btnCapP2 := MyGui.Add("Button", "x10 y192 w126 h30", "开始精炼取点F12")
-btnCapP2.OnEvent("Click", (*) => CapturePos(2))
-MyGui.SetFont("s10")
-btnBoth := MyGui.Add("Button", "x10 y228 w150 h30", "两种点击同时操作")
-btnBoth.OnEvent("Click", MinimizeAndRun(ToggleBoth))
-btnRightOnly := MyGui.Add("Button", "x168 y228 w80 h30", "抽奖")
+; 取点：勾上「取点【F12】」才出现后面的选择框，选一个位置后窗口最小化、
+; 等按 F12 取点（选完一次就清空，下次再选）。
+chkCapture := MyGui.Add("CheckBox", "x10 y157 w110 h30", "取点【F12】")
+chkCapture.OnEvent("Click", ToggleCaptureOptions)
+ddlCapture := MyGui.Add("DropDownList", "x125 y157 w80 r3", ["箱子", "自动放入", "开始精炼"])
+ddlCapture.OnEvent("Change", CaptureChoice)
+ddlCapture.Visible := false
+btnRightOnly := MyGui.Add("Button", "x10 y192 w80 h30", "抽奖")
 btnRightOnly.OnEvent("Click", MinimizeAndRun(ToggleRightOnly))
-btnSynth := MyGui.Add("Button", "x256 y228 w80 h30", "合成")
-btnSynth.OnEvent("Click", MinimizeAndRun(ToggleSynth))
-txtClickStatus := MyGui.Add("Text", "x10 y263 w332", "状态：未运行")
-MyGui.Add("Text", "x10 y283 w352 h2 +0x1000")
+btnRefine := MyGui.Add("Button", "x98 y192 w80 h30", "精炼")
+btnRefine.OnEvent("Click", MinimizeAndRun(ToggleRefine))
+txtClickStatus := MyGui.Add("Text", "x10 y227 w332", "状态：未运行")
+MyGui.Add("Text", "x10 y247 w352 h2 +0x1000")
 
 ; ---- 3. 快捷切换桌面 ----
-MyGui.Add("Text", "x10 y293 w332", "3. 快捷切换桌面 (~)")
-btnQuickStart := MyGui.Add("Button", "x10 y318 w170 h30", "开始：快捷切换")
+MyGui.Add("Text", "x10 y257 w332", "3. 快捷切换桌面 (~)")
+btnQuickStart := MyGui.Add("Button", "x10 y282 w170 h30", "开始：快捷切换")
 btnQuickStart.OnEvent("Click", MinimizeAndRun(StartQuickSwitch))
-btnQuickStop := MyGui.Add("Button", "x188 y318 w170 h30", "停止")
+btnQuickStop := MyGui.Add("Button", "x188 y282 w170 h30", "停止")
 btnQuickStop.OnEvent("Click", MinimizeAndRun(StopQuickSwitch))
 btnQuickStop.Enabled := false
-txtQuickStatus := MyGui.Add("Text", "x10 y358 w332", "状态：未录制")
+txtQuickStatus := MyGui.Add("Text", "x10 y322 w332", "状态：未录制")
 
 ; ---- 已保存的录制 ----
 ; 录制存在脚本目录下的 records 文件夹里，一个录制一个文件，文件名就是录制的名字。
 ; 下拉框里可以直接输新名字（点保存就是存成这个名字），也可以选已有的名字（点读取、删除）。
-MyGui.Add("Text", "x10 y383 w332", "已保存的录制")
-cmbRecords := MyGui.Add("ComboBox", "x10 y408 w170", [])
-btnSaveRecord := MyGui.Add("Button", "x188 y408 w55 h30", "保存")
+MyGui.Add("Text", "x10 y347 w332", "已保存的录制")
+cmbRecords := MyGui.Add("ComboBox", "x10 y372 w170", [])
+btnSaveRecord := MyGui.Add("Button", "x188 y372 w55 h30", "保存")
 btnSaveRecord.OnEvent("Click", MinimizeAndRun(SaveRecord))
-btnLoadRecord := MyGui.Add("Button", "x249 y408 w55 h30", "读取")
+btnLoadRecord := MyGui.Add("Button", "x249 y372 w55 h30", "读取")
 btnLoadRecord.OnEvent("Click", MinimizeAndRun(LoadRecord))
-btnDeleteRecord := MyGui.Add("Button", "x310 y408 w55 h30", "删除")
+btnDeleteRecord := MyGui.Add("Button", "x310 y372 w55 h30", "删除")
 btnDeleteRecord.OnEvent("Click", MinimizeAndRun(DeleteRecord))
-MyGui.Add("Text", "x10 y448 w352 h2 +0x1000")
+MyGui.Add("Text", "x10 y412 w352 h2 +0x1000")
 
 ; ---- 4. 账号登陆 ----
 ; 四个短选择框一排（2026-11-22 她加的桌面4），框下面分别标注桌面1/2/3/4；
@@ -495,46 +490,46 @@ MyGui.Add("Text", "x10 y448 w352 h2 +0x1000")
 ; 二次密码都在对话框里填）；「删除」删的是桌面1框里选中的账号。账号名最长
 ; 6 个字符，四个框各 w68 正好显示全（w60 时最后一个字符显示不下，她定的）。
 ; 窗口配合收窄到 372（原 412），上面三个部分也相应收窄，整体匀称。
-MyGui.Add("Text", "x10 y458 w180", "4. 账号登陆（无快捷键）")
+MyGui.Add("Text", "x10 y422 w180", "4. 账号登陆（无快捷键）")
 ; 「关闭王者日志」默认勾选：勾上才在登陆后去各桌面点「关闭」；不勾只登陆不点。
-chkCloseKingLog := MyGui.Add("CheckBox", "x200 y458 w130 h20 Checked", "关闭王者日志")
-cmbAcc1 := MyGui.Add("DropDownList", "x10 y483 w68 r35", [])
-cmbAcc2 := MyGui.Add("DropDownList", "x82 y483 w68 r35", [])
-cmbAcc3 := MyGui.Add("DropDownList", "x154 y483 w68 r35", [])
-cmbAcc4 := MyGui.Add("DropDownList", "x226 y483 w68 r35", [])
+chkCloseKingLog := MyGui.Add("CheckBox", "x200 y422 w130 h20 Checked", "关闭王者日志")
+cmbAcc1 := MyGui.Add("DropDownList", "x10 y447 w68 r35", [])
+cmbAcc2 := MyGui.Add("DropDownList", "x82 y447 w68 r35", [])
+cmbAcc3 := MyGui.Add("DropDownList", "x154 y447 w68 r35", [])
+cmbAcc4 := MyGui.Add("DropDownList", "x226 y447 w68 r35", [])
 SendMessage(0x1701, 35, 0, cmbAcc1)  ; CB_SETMINVISIBLE：弹出列表一次显示 35 行，不用滚动
 SendMessage(0x1701, 35, 0, cmbAcc2)
 SendMessage(0x1701, 35, 0, cmbAcc3)
 SendMessage(0x1701, 35, 0, cmbAcc4)
-MyGui.Add("Text", "x10 y515 w68 +Center", "桌面1")
-MyGui.Add("Text", "x82 y515 w68 +Center", "桌面2")
-MyGui.Add("Text", "x154 y515 w68 +Center", "桌面3")
-MyGui.Add("Text", "x226 y515 w68 +Center", "桌面4")
-btnAddAccount := MyGui.Add("Button", "x10 y541 w68 h30", "新增")
+MyGui.Add("Text", "x10 y479 w68 +Center", "桌面1")
+MyGui.Add("Text", "x82 y479 w68 +Center", "桌面2")
+MyGui.Add("Text", "x154 y479 w68 +Center", "桌面3")
+MyGui.Add("Text", "x226 y479 w68 +Center", "桌面4")
+btnAddAccount := MyGui.Add("Button", "x10 y505 w68 h30", "新增")
 btnAddAccount.OnEvent("Click", AddAccount)
-btnLogin := MyGui.Add("Button", "x82 y541 w68 h30", "登陆")
+btnLogin := MyGui.Add("Button", "x82 y505 w68 h30", "登陆")
 btnLogin.OnEvent("Click", MinimizeAndRun(LoginAccount))
-btnDeleteAccount := MyGui.Add("Button", "x154 y541 w68 h30", "删除")
+btnDeleteAccount := MyGui.Add("Button", "x154 y505 w68 h30", "删除")
 btnDeleteAccount.OnEvent("Click", MinimizeAndRun(DeleteAccount))
 ; 更新结果就显示在这一行（平时空着）：点底部「更新」后显示几秒，然后自动消失。
 ; 功能 4 原来的「状态：未登陆」一行 2026-11-06 按她要求去掉，登陆进度改记到日志。
-txtUpdateStatus := MyGui.Add("Text", "x10 y579 w332", "")
-MyGui.Add("Text", "x10 y603 w352 h2 +0x1000")
+txtUpdateStatus := MyGui.Add("Text", "x10 y543 w332", "")
+MyGui.Add("Text", "x10 y567 w352 h2 +0x1000")
 
 ; ---- 底部 ----
-btnStopAll := MyGui.Add("Button", "x10 y613 w66 h30", "全部停止")
+btnStopAll := MyGui.Add("Button", "x10 y577 w66 h30", "全部停止")
 btnStopAll.OnEvent("Click", MinimizeAndRun(StopAll))
-btnSaveConfig := MyGui.Add("Button", "x82 y613 w66 h30", "保存配置")
+btnSaveConfig := MyGui.Add("Button", "x82 y577 w66 h30", "保存配置")
 btnSaveConfig.OnEvent("Click", MinimizeAndRun(SaveConfig))
-btnHelp := MyGui.Add("Button", "x154 y613 w66 h30", "使用说明")
+btnHelp := MyGui.Add("Button", "x154 y577 w66 h30", "使用说明")
 btnHelp.OnEvent("Click", ToggleHelp)
 ; 「更新」不包 MinimizeAndRun：点了要留在窗口上看更新结果那一行。
-btnUpdate := MyGui.Add("Button", "x226 y613 w66 h30", "更新")
+btnUpdate := MyGui.Add("Button", "x226 y577 w66 h30", "更新")
 btnUpdate.OnEvent("Click", CheckForUpdate)
-btnExit := MyGui.Add("Button", "x298 y613 w66 h30", "退出")
+btnExit := MyGui.Add("Button", "x298 y577 w66 h30", "退出")
 btnExit.OnEvent("Click", (*) => ExitApp())
 ; 使用说明面板（窗口右侧，平时藏着，点「使用说明」才展开显示）。
-txtHelp := MyGui.Add("Edit", "x382 y10 w300 h646 +ReadOnly +Multi +VScroll", HelpText)
+txtHelp := MyGui.Add("Edit", "x382 y10 w300 h610 +ReadOnly +Multi +VScroll", HelpText)
 txtHelp.Visible := false
 MyGui.OnEvent("Close", (*) => ExitApp())
 
@@ -566,7 +561,7 @@ if (DesktopCount < 1) {
 RefreshRecordList()
 RefreshAccountList()
 
-MyGui.Show("w372 h666")
+MyGui.Show("w372 h630")
 
 ; 打开脚本时默认开启功能 3（快捷切换）：和点「开始」按钮走
 ; 同一条路，开启后 2 秒还会把三个桌面的游戏窗口居中。
@@ -1500,7 +1495,32 @@ PressXStep() {
 
 
 ; ===== 功能 2：开箱子 =====
-; 取点：点取点按钮后窗口最小化，把鼠标移到要记录的位置，
+; 取点勾选框：勾上才出现后面的选择框（默认不勾，所以先藏）；
+; 不勾就藏起来，并把选择框清空。
+ToggleCaptureOptions(*) {
+    global chkCapture, ddlCapture
+    if (chkCapture.Value) {
+        ddlCapture.Visible := true
+    } else {
+        ddlCapture.Visible := false
+        ddlCapture.Value := 0
+    }
+}
+
+; 取点选择框：选一个位置就和以前点取点按钮一样，窗口最小化、
+; 等按 F12 取点。选完一次就清空，下次再选。
+CaptureChoice(*) {
+    global ddlCapture
+    if (ddlCapture.Text = "箱子") {
+        CapturePos(3)
+    } else if (ddlCapture.Text = "自动放入") {
+        CapturePos(1)
+    } else if (ddlCapture.Text = "开始精炼") {
+        CapturePos(2)
+    }
+}
+
+; 取点：勾上「取点【F12】」后选一个位置，窗口最小化，把鼠标移到要记录的位置，
 ; 按 F12 取点（F12 热键里调 FinishCapture），按 Esc 取消。
 ; target: 1=自动放入(点 1)，2=开始精炼(点 2)，3=箱子位置(右键)。
 CapturePos(target) {
@@ -1512,7 +1532,7 @@ CapturePos(target) {
 }
 
 FinishCapture() {
-    global MyGui, CaptureTarget, CaptureTick
+    global MyGui, CaptureTarget, CaptureTick, ddlCapture
     global Point1X, Point1Y, Point2X, Point2Y, RightX, RightY
     MouseGetPos(&mx, &my)
     if (CaptureTarget = 1) {
@@ -1527,38 +1547,32 @@ FinishCapture() {
     }
     CaptureTarget := 0
     CaptureTick := A_TickCount
+    ddlCapture.Value := 0
     MyGui.Restore()
     ShowTempToolTip("取点成功")
 }
 
 CancelCapture() {
-    global MyGui, CaptureTarget
+    global MyGui, CaptureTarget, ddlCapture
     CaptureTarget := 0
+    ddlCapture.Value := 0
     ToolTip()
     MyGui.Restore()
 }
 
 UpdateClickButtons() {
-    global ClickMode, btnBoth, btnRightOnly, btnSynth, txtClickStatus
-    if (ClickMode = "both") {
-        btnBoth.Text := "停止：两种点击同时操作"
-        btnRightOnly.Text := "抽奖"
-        btnSynth.Text := "合成"
-        txtClickStatus.Text := "状态：运行中（开箱子：两种点击同时）"
-    } else if (ClickMode = "right") {
-        btnBoth.Text := "两种点击同时操作"
+    global ClickMode, btnRightOnly, btnRefine, txtClickStatus
+    if (ClickMode = "right") {
         btnRightOnly.Text := "停止：抽奖"
-        btnSynth.Text := "合成"
+        btnRefine.Text := "精炼"
         txtClickStatus.Text := "状态：运行中（抽奖）"
     } else if (ClickMode = "two") {
-        btnBoth.Text := "两种点击同时操作"
         btnRightOnly.Text := "抽奖"
-        btnSynth.Text := "停止：合成"
-        txtClickStatus.Text := "状态：运行中（合成：两点点击）"
+        btnRefine.Text := "停止：精炼"
+        txtClickStatus.Text := "状态：运行中（精炼：两点点击）"
     } else {
-        btnBoth.Text := "两种点击同时操作"
         btnRightOnly.Text := "抽奖"
-        btnSynth.Text := "合成"
+        btnRefine.Text := "精炼"
         txtClickStatus.Text := "状态：未运行"
     }
 }
@@ -1572,28 +1586,6 @@ StopClickLoops() {
     ClickMode := ""
     UpdateClickButtons()
     StopLogin()   ; 其他功能启动、全部停止时，顺便终止进行中的账号登陆
-}
-
-ToggleBoth(*) {
-    global ClickMode, LastClickMode, TwoRunning, TwoPhase, Point1X, Point1Y, Point2X, Point2Y
-    global WaitAfterFirst, WaitAfterSecond, RightRunning, RightX, RightY, RightClickInterval
-    if (ClickMode = "both") {
-        StopClickLoops()
-        ToolTip()
-        return
-    }
-    StopClickLoops()
-    StopDesktopPolling()
-    StopQuickSwitch()
-    TwoRunning := true
-    TwoPhase := 0
-    RightRunning := true
-    ClickMode := "both"
-    LastClickMode := "both"
-    UpdateClickButtons()
-    StepTwo()
-    StepRight()
-    SetTimer(StepRight, RightClickInterval)
 }
 
 ToggleRightOnly(*) {
@@ -1614,7 +1606,7 @@ ToggleRightOnly(*) {
     SetTimer(StepRight, RightClickInterval)
 }
 
-ToggleSynth(*) {
+ToggleRefine(*) {
     global ClickMode, LastClickMode, TwoRunning, TwoPhase, Point1X, Point1Y, Point2X, Point2Y, WaitAfterFirst, WaitAfterSecond
     if (ClickMode = "two") {
         StopClickLoops()
@@ -1768,9 +1760,7 @@ ToggleClickHotkey(*) {
     } else if (LastClickMode = "right") {
         ToggleRightOnly()
     } else if (LastClickMode = "two") {
-        ToggleSynth()
-    } else if (LastClickMode = "both") {
-        ToggleBoth()
+        ToggleRefine()
     }
 }
 
